@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# Database
+*.db
+*.sqlite3
+
+# Screenshots / logs
+screenshot_*.png
+*.log
+
+# Editor settings
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
