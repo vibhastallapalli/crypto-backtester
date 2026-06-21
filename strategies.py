@@ -131,6 +131,28 @@ def volume_breakout(
     return _simulate(df, "signal", asset, "Volume Breakout")
 
 
+def macd_crossover(
+    df: pd.DataFrame,
+    asset: str,
+    fast: int = 12,
+    slow: int = 26,
+    signal: int = 9,
+) -> BacktestResult:
+    df = df.copy()
+    ema_fast = df["Close"].ewm(span=fast, adjust=False).mean()
+    ema_slow = df["Close"].ewm(span=slow, adjust=False).mean()
+    df["macd"] = ema_fast - ema_slow
+    df["macd_signal"] = df["macd"].ewm(span=signal, adjust=False).mean()
+    df["macd_hist"] = df["macd"] - df["macd_signal"]
+    cross_up = (df["macd"] > df["macd_signal"]) & (df["macd"].shift(1) <= df["macd_signal"].shift(1))
+    cross_dn = (df["macd"] < df["macd_signal"]) & (df["macd"].shift(1) >= df["macd_signal"].shift(1))
+    df["signal"] = "hold"
+    df.loc[cross_up, "signal"] = "buy"
+    df.loc[cross_dn, "signal"] = "sell"
+    df = df.dropna(subset=["macd", "macd_signal"]).copy()
+    return _simulate(df, "signal", asset, "MACD Crossover")
+
+
 def compute_metrics(result: BacktestResult) -> dict:
     equity = result.equity_curve
     trades = result.trades

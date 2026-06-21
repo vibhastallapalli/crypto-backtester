@@ -12,6 +12,7 @@ from strategies import (
     BacktestResult,
     compute_metrics,
     ma_crossover,
+    macd_crossover,
     rsi_mean_reversion,
     volume_breakout,
 )
@@ -167,7 +168,7 @@ st.markdown(
 
 # ── Constants ──────────────────────────────────────────────────────────────────
 ASSETS = ["BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "AVAX", "DOGE"]
-STRATEGIES = ["MA Crossover", "RSI Mean Reversion", "Volume Breakout"]
+STRATEGIES = ["MA Crossover", "RSI Mean Reversion", "Volume Breakout", "MACD Crossover"]
 D_START = datetime.date(2022, 1, 1)
 D_END = datetime.date(2024, 12, 31)
 
@@ -284,11 +285,17 @@ with tab1:
         oversold = p2.slider("Oversold", 10, 45, 30)
         overbought = p3.slider("Overbought", 55, 90, 70)
         params = {"period": rsi_period, "oversold": oversold, "overbought": overbought}
-    else:  # Volume Breakout
+    elif strategy == "Volume Breakout":
         p1, p2, p3 = st.columns([1, 1, 2])
         vol_mult = p1.slider("Volume Multiplier", 1.0, 5.0, 2.0, 0.1)
         lookback = p2.slider("Lookback", 5, 60, 20)
         params = {"multiplier": vol_mult, "lookback": lookback}
+    else:  # MACD Crossover
+        p1, p2, p3 = st.columns(3)
+        macd_fast = p1.slider("Fast EMA", 5, 50, 12)
+        macd_slow = p2.slider("Slow EMA", 10, 100, 26)
+        macd_sig = p3.slider("Signal EMA", 3, 30, 9)
+        params = {"fast": macd_fast, "slow": macd_slow, "signal": macd_sig}
 
     st.markdown("")
     run_btn = st.button("▶  Run Backtest", key="run_bt")
@@ -312,8 +319,10 @@ with tab1:
                 result: BacktestResult = ma_crossover(df, asset, **params)
             elif strategy == "RSI Mean Reversion":
                 result = rsi_mean_reversion(df, asset, **params)
-            else:
+            elif strategy == "Volume Breakout":
                 result = volume_breakout(df, asset, **params)
+            else:
+                result = macd_crossover(df, asset, **params)
 
         if result.trades:
             save_trades(result.trades)
@@ -387,6 +396,23 @@ with tab1:
                 line=dict(color="#a29bfe", width=1, dash="dot"),
                 opacity=0.6,
             ))
+        elif cur_strat == "MACD Crossover" and "macd" in sig_df.columns:
+            scale = sig_df["Close"].max() / (sig_df["macd"].abs().max() or 1)
+            mid = sig_df["Close"].mean()
+            fig_p.add_trace(go.Scatter(
+                x=sig_df.index,
+                y=mid + sig_df["macd"] * scale * 0.15,
+                mode="lines", name="MACD (scaled)",
+                line=dict(color="#fd79a8", width=1, dash="dot"),
+                opacity=0.6,
+            ))
+            fig_p.add_trace(go.Scatter(
+                x=sig_df.index,
+                y=mid + sig_df["macd_signal"] * scale * 0.15,
+                mode="lines", name="Signal (scaled)",
+                line=dict(color="#fdcb6e", width=1, dash="dot"),
+                opacity=0.6,
+            ))
 
         if not buys.empty:
             fig_p.add_trace(go.Scatter(
@@ -449,6 +475,7 @@ with tab1:
                     ("MA Crossover", ma_crossover, {"fast": 10, "slow": 30}),
                     ("RSI Mean Reversion", rsi_mean_reversion, {"period": 14, "oversold": 30, "overbought": 70}),
                     ("Volume Breakout", volume_breakout, {"multiplier": 2.0, "lookback": 20}),
+                    ("MACD Crossover", macd_crossover, {"fast": 12, "slow": 26, "signal": 9}),
                 ]:
                     r = strat_fn(df, cur_asset, **strat_params)
                     cmp_results[strat_name] = (r, compute_metrics(r))
@@ -464,7 +491,7 @@ with tab1:
             )
 
             # Overlaid equity curves
-            palette = [ACCENT, YELLOW, "#ff6b81"]
+            palette = [ACCENT, YELLOW, "#ff6b81", "#a29bfe"]
             fig_cmp = go.Figure()
             for (name, (res, _)), color in zip(cmp_results.items(), palette):
                 fig_cmp.add_trace(go.Scatter(
