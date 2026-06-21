@@ -438,6 +438,65 @@ with tab1:
         )
         st.plotly_chart(fig_eq, use_container_width=True)
 
+        # ── Strategy Comparison ────────────────────────────────────────────────
+        st.markdown("<div style='margin-top:4px'></div>", unsafe_allow_html=True)
+        cmp_btn = st.button("⚖  Compare All Strategies", key="cmp_btn")
+
+        if cmp_btn:
+            with st.spinner("Running all strategies for comparison…"):
+                cmp_results = {}
+                for strat_name, strat_fn, strat_params in [
+                    ("MA Crossover", ma_crossover, {"fast": 10, "slow": 30}),
+                    ("RSI Mean Reversion", rsi_mean_reversion, {"period": 14, "oversold": 30, "overbought": 70}),
+                    ("Volume Breakout", volume_breakout, {"multiplier": 2.0, "lookback": 20}),
+                ]:
+                    r = strat_fn(df, cur_asset, **strat_params)
+                    cmp_results[strat_name] = (r, compute_metrics(r))
+            st.session_state["cmp_results"] = cmp_results
+
+        if "cmp_results" in st.session_state:
+            cmp_results = st.session_state["cmp_results"]
+            st.divider()
+            st.markdown(
+                f'<p style="color:{ACCENT};font-family:Space Mono,monospace;font-size:0.95rem;'
+                f'font-weight:700;margin-bottom:8px;">Strategy Comparison (default params)</p>',
+                unsafe_allow_html=True,
+            )
+
+            # Overlaid equity curves
+            palette = [ACCENT, YELLOW, "#ff6b81"]
+            fig_cmp = go.Figure()
+            for (name, (res, _)), color in zip(cmp_results.items(), palette):
+                fig_cmp.add_trace(go.Scatter(
+                    x=res.equity_curve.index, y=res.equity_curve,
+                    mode="lines", name=name,
+                    line=dict(color=color, width=2),
+                ))
+            bh_base = df["Close"].loc[df.index[0]:]
+            bh_cmp = bh_base / float(bh_base.iloc[0])
+            fig_cmp.add_trace(go.Scatter(
+                x=bh_cmp.index, y=bh_cmp,
+                mode="lines", name="Buy & Hold",
+                line=dict(color=MUTED, width=1.5, dash="dash"),
+            ))
+            fig_cmp.add_hline(y=1.0, line_dash="dot", line_color=BORDER, opacity=0.6)
+            apply_plotly_layout(
+                fig_cmp,
+                title=f"{cur_asset} — All Strategies (normalized equity)",
+                yaxis_title="Portfolio Value",
+                height=360,
+            )
+            st.plotly_chart(fig_cmp, use_container_width=True)
+
+            # Metrics comparison table
+            metric_keys = ["total_return", "win_rate", "sharpe", "max_drawdown", "num_trades", "avg_pnl_pct", "profit_factor"]
+            metric_labels = ["Total Return %", "Win Rate %", "Sharpe", "Max Drawdown %", "# Trades", "Avg PnL %", "Profit Factor"]
+            rows = {}
+            for name, (_, m) in cmp_results.items():
+                rows[name] = [m[k] for k in metric_keys]
+            cmp_df = pd.DataFrame(rows, index=metric_labels)
+            st.dataframe(cmp_df.style.format(lambda v: f"{v}" if isinstance(v, str) else f"{v:.2f}"), use_container_width=True)
+
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 2 — Portfolio Analyzer
 # ══════════════════════════════════════════════════════════════════════════════
