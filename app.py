@@ -464,6 +464,31 @@ with tab1:
         )
         st.plotly_chart(fig_eq, use_container_width=True)
 
+        # ── Drawdown chart ─────────────────────────────────────────────────────
+        peak = equity.cummax()
+        drawdown = (equity - peak) / peak * 100
+
+        fig_dd = go.Figure()
+        fig_dd.add_trace(go.Scatter(
+            x=drawdown.index, y=drawdown,
+            mode="lines", name="Drawdown",
+            line=dict(color=RED, width=1.5),
+            fill="tozeroy", fillcolor="rgba(255,71,87,0.12)",
+        ))
+        fig_dd.add_hline(
+            y=float(drawdown.min()), line_dash="dot", line_color=YELLOW,
+            annotation_text=f"Max DD: {drawdown.min():.2f}%",
+            annotation_font_color=YELLOW, annotation_position="bottom right",
+        )
+        apply_plotly_layout(
+            fig_dd,
+            title="Drawdown (%)",
+            yaxis_title="Drawdown (%)",
+            height=220,
+            margin=dict(l=50, r=20, t=40, b=30),
+        )
+        st.plotly_chart(fig_dd, use_container_width=True)
+
         # ── Strategy Comparison ────────────────────────────────────────────────
         st.markdown("<div style='margin-top:4px'></div>", unsafe_allow_html=True)
         cmp_btn = st.button("⚖  Compare All Strategies", key="cmp_btn")
