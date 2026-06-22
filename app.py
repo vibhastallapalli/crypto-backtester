@@ -10,6 +10,7 @@ from data_fetcher import fetch_prices
 from portfolio import correlation_matrix, risk_return_stats
 from strategies import (
     BacktestResult,
+    bollinger_bands,
     compute_metrics,
     ma_crossover,
     macd_crossover,
@@ -168,7 +169,7 @@ st.markdown(
 
 # ── Constants ──────────────────────────────────────────────────────────────────
 ASSETS = ["BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "AVAX", "DOGE"]
-STRATEGIES = ["MA Crossover", "RSI Mean Reversion", "Volume Breakout", "MACD Crossover"]
+STRATEGIES = ["MA Crossover", "RSI Mean Reversion", "Volume Breakout", "MACD Crossover", "Bollinger Bands"]
 D_START = datetime.date(2022, 1, 1)
 D_END = datetime.date(2024, 12, 31)
 
@@ -290,12 +291,17 @@ with tab1:
         vol_mult = p1.slider("Volume Multiplier", 1.0, 5.0, 2.0, 0.1)
         lookback = p2.slider("Lookback", 5, 60, 20)
         params = {"multiplier": vol_mult, "lookback": lookback}
-    else:  # MACD Crossover
+    elif strategy == "MACD Crossover":
         p1, p2, p3 = st.columns(3)
         macd_fast = p1.slider("Fast EMA", 5, 50, 12)
         macd_slow = p2.slider("Slow EMA", 10, 100, 26)
         macd_sig = p3.slider("Signal EMA", 3, 30, 9)
         params = {"fast": macd_fast, "slow": macd_slow, "signal": macd_sig}
+    else:  # Bollinger Bands
+        p1, p2, p3 = st.columns([1, 1, 2])
+        bb_period = p1.slider("Period", 5, 50, 20)
+        bb_std = p2.slider("Std Dev", 1.0, 4.0, 2.0, 0.1)
+        params = {"period": bb_period, "std_dev": bb_std}
 
     st.markdown("")
     run_btn = st.button("▶  Run Backtest", key="run_bt")
@@ -321,8 +327,10 @@ with tab1:
                 result = rsi_mean_reversion(df, asset, **params)
             elif strategy == "Volume Breakout":
                 result = volume_breakout(df, asset, **params)
-            else:
+            elif strategy == "MACD Crossover":
                 result = macd_crossover(df, asset, **params)
+            else:
+                result = bollinger_bands(df, asset, **params)
 
         if result.trades:
             save_trades(result.trades)
@@ -395,6 +403,23 @@ with tab1:
                 mode="lines", name="RSI (scaled)",
                 line=dict(color="#a29bfe", width=1, dash="dot"),
                 opacity=0.6,
+            ))
+        elif cur_strat == "Bollinger Bands" and "bb_upper" in sig_df.columns:
+            fig_p.add_trace(go.Scatter(
+                x=sig_df.index, y=sig_df["bb_upper"],
+                mode="lines", name="Upper Band",
+                line=dict(color=YELLOW, width=1, dash="dot"), opacity=0.7,
+            ))
+            fig_p.add_trace(go.Scatter(
+                x=sig_df.index, y=sig_df["bb_mid"],
+                mode="lines", name="Mid Band",
+                line=dict(color=MUTED, width=1, dash="dot"), opacity=0.5,
+            ))
+            fig_p.add_trace(go.Scatter(
+                x=sig_df.index, y=sig_df["bb_lower"],
+                mode="lines", name="Lower Band",
+                line=dict(color="#ff6b81", width=1, dash="dot"), opacity=0.7,
+                fill="tonexty", fillcolor="rgba(255,107,129,0.04)",
             ))
         elif cur_strat == "MACD Crossover" and "macd" in sig_df.columns:
             scale = sig_df["Close"].max() / (sig_df["macd"].abs().max() or 1)
@@ -522,6 +547,7 @@ with tab1:
                     ("RSI Mean Reversion", rsi_mean_reversion, {"period": 14, "oversold": 30, "overbought": 70}),
                     ("Volume Breakout", volume_breakout, {"multiplier": 2.0, "lookback": 20}),
                     ("MACD Crossover", macd_crossover, {"fast": 12, "slow": 26, "signal": 9}),
+                    ("Bollinger Bands", bollinger_bands, {"period": 20, "std_dev": 2.0}),
                 ]:
                     r = strat_fn(df, cur_asset, **strat_params)
                     cmp_results[strat_name] = (r, compute_metrics(r))
@@ -537,7 +563,7 @@ with tab1:
             )
 
             # Overlaid equity curves
-            palette = [ACCENT, YELLOW, "#ff6b81", "#a29bfe"]
+            palette = [ACCENT, YELLOW, "#ff6b81", "#a29bfe", "#fd79a8"]
             fig_cmp = go.Figure()
             for (name, (res, _)), color in zip(cmp_results.items(), palette):
                 fig_cmp.add_trace(go.Scatter(

@@ -131,6 +131,26 @@ def volume_breakout(
     return _simulate(df, "signal", asset, "Volume Breakout")
 
 
+def bollinger_bands(
+    df: pd.DataFrame,
+    asset: str,
+    period: int = 20,
+    std_dev: float = 2.0,
+) -> BacktestResult:
+    df = df.copy()
+    df["bb_mid"] = df["Close"].rolling(period).mean()
+    rolling_std = df["Close"].rolling(period).std()
+    df["bb_upper"] = df["bb_mid"] + std_dev * rolling_std
+    df["bb_lower"] = df["bb_mid"] - std_dev * rolling_std
+    df = df.dropna(subset=["bb_mid", "bb_upper", "bb_lower"]).copy()
+    touch_lower = (df["Close"] <= df["bb_lower"]) & (df["Close"].shift(1) > df["bb_lower"].shift(1))
+    touch_upper = (df["Close"] >= df["bb_upper"]) & (df["Close"].shift(1) < df["bb_upper"].shift(1))
+    df["signal"] = "hold"
+    df.loc[touch_lower, "signal"] = "buy"
+    df.loc[touch_upper, "signal"] = "sell"
+    return _simulate(df, "signal", asset, "Bollinger Bands")
+
+
 def macd_crossover(
     df: pd.DataFrame,
     asset: str,
