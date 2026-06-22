@@ -721,6 +721,41 @@ with tab3:
         styled = trades_df.style.applymap(_highlight_pnl, subset=["pnl", "pnl_pct"])
         st.dataframe(styled, use_container_width=True, height=480)
 
+        # ── Monthly returns heatmap ────────────────────────────────────────────
+        monthly = trades_df.copy()
+        monthly["month"] = pd.to_datetime(monthly["entry_date"]).dt.to_period("M")
+        monthly_pnl = monthly.groupby("month")["pnl_pct"].sum().reset_index()
+        monthly_pnl["year"] = monthly_pnl["month"].dt.year
+        monthly_pnl["mon"] = monthly_pnl["month"].dt.month
+
+        if len(monthly_pnl) >= 2:
+            pivot = monthly_pnl.pivot(index="year", columns="mon", values="pnl_pct").fillna(0)
+            month_names = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+            col_labels = [month_names[m - 1] for m in pivot.columns]
+            row_labels = [str(y) for y in pivot.index]
+            z = pivot.values.tolist()
+            text = [[f"{v:.1f}%" for v in row] for row in z]
+
+            fig_heat = go.Figure(data=go.Heatmap(
+                z=z,
+                x=col_labels,
+                y=row_labels,
+                colorscale=[[0, RED], [0.5, BG], [1, ACCENT]],
+                zmid=0,
+                text=text,
+                texttemplate="%{text}",
+                textfont=dict(size=11, color=TEXT),
+                showscale=True,
+                colorbar=dict(tickfont=dict(color=TEXT), outlinecolor=BORDER, title="PnL %"),
+            ))
+            apply_plotly_layout(
+                fig_heat,
+                title="Monthly PnL % (by entry date)",
+                height=max(180, 60 + len(row_labels) * 55),
+                margin=dict(l=60, r=20, t=50, b=40),
+            )
+            st.plotly_chart(fig_heat, use_container_width=True)
+
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 4 — SQL Explorer
 # ══════════════════════════════════════════════════════════════════════════════
