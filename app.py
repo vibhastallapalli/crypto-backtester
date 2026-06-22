@@ -491,6 +491,27 @@ with tab1:
 
         # ── Strategy Comparison ────────────────────────────────────────────────
         st.markdown("<div style='margin-top:4px'></div>", unsafe_allow_html=True)
+
+        if result.trades:
+            trades_export = pd.DataFrame(result.trades)
+            equity_export = result.equity_curve.reset_index()
+            equity_export.columns = ["date", "equity"]
+            exp_col1, exp_col2, _ = st.columns([1, 1, 5])
+            exp_col1.download_button(
+                label="⬇  Trades CSV",
+                data=trades_export.to_csv(index=False).encode(),
+                file_name=f"backtest_{cur_asset}_{cur_strat.replace(' ','_').lower()}_{datetime.date.today()}.csv",
+                mime="text/csv",
+                key="dl_bt_trades",
+            )
+            exp_col2.download_button(
+                label="⬇  Equity CSV",
+                data=equity_export.to_csv(index=False).encode(),
+                file_name=f"equity_{cur_asset}_{cur_strat.replace(' ','_').lower()}_{datetime.date.today()}.csv",
+                mime="text/csv",
+                key="dl_bt_equity",
+            )
+
         cmp_btn = st.button("⚖  Compare All Strategies", key="cmp_btn")
 
         if cmp_btn:
@@ -717,6 +738,15 @@ with tab3:
             if isinstance(val, (int, float)):
                 return f"color: {ACCENT}" if val > 0 else f"color: {RED}"
             return ""
+
+        dl_col, _ = st.columns([1, 4])
+        dl_col.download_button(
+            label="⬇  Export CSV",
+            data=trades_df.to_csv(index=False).encode(),
+            file_name=f"trades_{tl_asset.lower()}_{datetime.date.today()}.csv",
+            mime="text/csv",
+            key="dl_trades",
+        )
 
         styled = trades_df.style.applymap(_highlight_pnl, subset=["pnl", "pnl_pct"])
         st.dataframe(styled, use_container_width=True, height=480)
