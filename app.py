@@ -303,6 +303,16 @@ with tab1:
         bb_std = p2.slider("Std Dev", 1.0, 4.0, 2.0, 0.1)
         params = {"period": bb_period, "std_dev": bb_std}
 
+    st.markdown(
+        f'<p style="color:{MUTED};font-size:0.8rem;margin:6px 0 2px;">Risk Controls</p>',
+        unsafe_allow_html=True,
+    )
+    rc1, rc2, rc3 = st.columns([1, 1, 2])
+    stop_loss_pct = rc1.slider("Stop Loss %", 0.0, 30.0, 0.0, 0.5,
+                                help="0 = disabled. Exit trade if loss exceeds this %.")
+    take_profit_pct = rc2.slider("Take Profit %", 0.0, 100.0, 0.0, 1.0,
+                                  help="0 = disabled. Exit trade if gain exceeds this %.")
+
     st.markdown("")
     run_btn = st.button("▶  Run Backtest", key="run_bt")
 
@@ -321,16 +331,17 @@ with tab1:
             st.stop()
 
         with st.spinner("Running backtest…"):
+            sl_tp = {"stop_loss": stop_loss_pct, "take_profit": take_profit_pct}
             if strategy == "MA Crossover":
-                result: BacktestResult = ma_crossover(df, asset, **params)
+                result: BacktestResult = ma_crossover(df, asset, **params, **sl_tp)
             elif strategy == "RSI Mean Reversion":
-                result = rsi_mean_reversion(df, asset, **params)
+                result = rsi_mean_reversion(df, asset, **params, **sl_tp)
             elif strategy == "Volume Breakout":
-                result = volume_breakout(df, asset, **params)
+                result = volume_breakout(df, asset, **params, **sl_tp)
             elif strategy == "MACD Crossover":
-                result = macd_crossover(df, asset, **params)
+                result = macd_crossover(df, asset, **params, **sl_tp)
             else:
-                result = bollinger_bands(df, asset, **params)
+                result = bollinger_bands(df, asset, **params, **sl_tp)
 
         if result.trades:
             save_trades(result.trades)

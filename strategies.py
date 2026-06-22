@@ -20,7 +20,14 @@ def _calc_rsi(close: pd.Series, period: int = 14) -> pd.Series:
     return 100 - (100 / (1 + rs))
 
 
-def _simulate(df: pd.DataFrame, signal_col: str, asset: str, strategy_name: str) -> BacktestResult:
+def _simulate(
+    df: pd.DataFrame,
+    signal_col: str,
+    asset: str,
+    strategy_name: str,
+    stop_loss: float = 0.0,
+    take_profit: float = 0.0,
+) -> BacktestResult:
     close = df["Close"].values.astype(float)
     signals = df[signal_col].values
     dates = df.index
@@ -47,8 +54,11 @@ def _simulate(df: pd.DataFrame, signal_col: str, asset: str, strategy_name: str)
         if in_trade:
             current_equity = entry_equity * (price / entry_price)
             equity[i] = current_equity
-            if sig == "sell" and i > entry_idx:
-                pnl_pct = (price - entry_price) / entry_price
+            pnl_pct = (price - entry_price) / entry_price
+            sl_hit = stop_loss > 0 and pnl_pct <= -stop_loss / 100
+            tp_hit = take_profit > 0 and pnl_pct >= take_profit / 100
+            exit_signal = (sig == "sell" and i > entry_idx) or sl_hit or tp_hit
+            if exit_signal:
                 trades.append({
                     "asset": asset,
                     "entry_date": str(dates[entry_idx].date()),
@@ -70,7 +80,7 @@ def _simulate(df: pd.DataFrame, signal_col: str, asset: str, strategy_name: str)
     )
 
 
-def ma_crossover(df: pd.DataFrame, asset: str, fast: int = 10, slow: int = 30) -> BacktestResult:
+def ma_crossover(df: pd.DataFrame, asset: str, fast: int = 10, slow: int = 30, stop_loss: float = 0.0, take_profit: float = 0.0) -> BacktestResult:
     df = df.copy()
     df["fast_ma"] = df["Close"].rolling(fast).mean()
     df["slow_ma"] = df["Close"].rolling(slow).mean()
@@ -80,7 +90,7 @@ def ma_crossover(df: pd.DataFrame, asset: str, fast: int = 10, slow: int = 30) -
     df.loc[cross_up, "signal"] = "buy"
     df.loc[cross_dn, "signal"] = "sell"
     df = df.dropna(subset=["fast_ma", "slow_ma"]).copy()
-    return _simulate(df, "signal", asset, "MA Crossover")
+    return _simulate(df, "signal", asset, "MA Crossover", stop_loss, take_profit)
 
 
 def rsi_mean_reversion(
@@ -89,6 +99,8 @@ def rsi_mean_reversion(
     period: int = 14,
     oversold: int = 30,
     overbought: int = 70,
+    stop_loss: float = 0.0,
+    take_profit: float = 0.0,
 ) -> BacktestResult:
     df = df.copy()
     df["rsi"] = _calc_rsi(df["Close"], period)
@@ -98,7 +110,7 @@ def rsi_mean_reversion(
     df.loc[cross_os, "signal"] = "buy"
     df.loc[cross_ob, "signal"] = "sell"
     df = df.dropna(subset=["rsi"]).copy()
-    return _simulate(df, "signal", asset, "RSI Mean Reversion")
+    return _simulate(df, "signal", asset, "RSI Mean Reversion", stop_loss, take_profit)
 
 
 def volume_breakout(
@@ -106,6 +118,8 @@ def volume_breakout(
     asset: str,
     multiplier: float = 2.0,
     lookback: int = 20,
+    stop_loss: float = 0.0,
+    take_profit: float = 0.0,
 ) -> BacktestResult:
     df = df.copy()
     df["avg_vol"] = df["Volume"].rolling(lookback).mean()
@@ -128,7 +142,7 @@ def volume_breakout(
             in_trade = False
 
     df["signal"] = signals
-    return _simulate(df, "signal", asset, "Volume Breakout")
+    return _simulate(df, "signal", asset, "Volume Breakout", stop_loss, take_profit)
 
 
 def bollinger_bands(
@@ -136,6 +150,8 @@ def bollinger_bands(
     asset: str,
     period: int = 20,
     std_dev: float = 2.0,
+    stop_loss: float = 0.0,
+    take_profit: float = 0.0,
 ) -> BacktestResult:
     df = df.copy()
     df["bb_mid"] = df["Close"].rolling(period).mean()
@@ -148,7 +164,7 @@ def bollinger_bands(
     df["signal"] = "hold"
     df.loc[touch_lower, "signal"] = "buy"
     df.loc[touch_upper, "signal"] = "sell"
-    return _simulate(df, "signal", asset, "Bollinger Bands")
+    return _simulate(df, "signal", asset, "Bollinger Bands", stop_loss, take_profit)
 
 
 def macd_crossover(
@@ -157,6 +173,8 @@ def macd_crossover(
     fast: int = 12,
     slow: int = 26,
     signal: int = 9,
+    stop_loss: float = 0.0,
+    take_profit: float = 0.0,
 ) -> BacktestResult:
     df = df.copy()
     ema_fast = df["Close"].ewm(span=fast, adjust=False).mean()
@@ -170,7 +188,7 @@ def macd_crossover(
     df.loc[cross_up, "signal"] = "buy"
     df.loc[cross_dn, "signal"] = "sell"
     df = df.dropna(subset=["macd", "macd_signal"]).copy()
-    return _simulate(df, "signal", asset, "MACD Crossover")
+    return _simulate(df, "signal", asset, "MACD Crossover", stop_loss, take_profit)
 
 
 def compute_metrics(result: BacktestResult) -> dict:
