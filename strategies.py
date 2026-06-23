@@ -208,7 +208,7 @@ def compute_metrics(result: BacktestResult) -> dict:
     trades = result.trades
 
     empty = {
-        "total_return": 0.0, "win_rate": 0.0, "sharpe": 0.0,
+        "total_return": 0.0, "win_rate": 0.0, "sharpe": 0.0, "sortino": 0.0, "calmar": 0.0,
         "max_drawdown": 0.0, "num_trades": 0, "avg_pnl_pct": 0.0,
         "profit_factor": 0.0,
     }
@@ -238,10 +238,21 @@ def compute_metrics(result: BacktestResult) -> dict:
     if profit_factor == float("inf"):
         profit_factor = "∞"
 
+    downside = daily_rets[daily_rets < 0]
+    if len(downside) > 1 and downside.std() > 0:
+        sortino = float((active.mean() * 252) / (downside.std() * np.sqrt(252)))
+    else:
+        sortino = 0.0
+
+    ann_return = float(active.mean() * 252) * 100
+    calmar = round(ann_return / abs(max_drawdown), 2) if max_drawdown < 0 else 0.0
+
     return {
         "total_return": round(total_return, 2),
         "win_rate": round(win_rate, 2),
         "sharpe": round(sharpe, 2),
+        "sortino": round(sortino, 2),
+        "calmar": calmar,
         "max_drawdown": round(max_drawdown, 2),
         "num_trades": len(trades),
         "avg_pnl_pct": round(float(np.mean(pnl_pcts)), 2),

@@ -374,20 +374,27 @@ with tab1:
 
         st.divider()
 
-        # Metric cards row
-        cols = st.columns(7)
+        # Metric cards — row 1
+        cols = st.columns(5)
         metric_card(cols[0], "Total Return", metrics["total_return"], pct=True,
                     color=_color_for(metrics["total_return"]))
         metric_card(cols[1], "Win Rate", metrics["win_rate"], pct=True,
                     color=_color_for(metrics["win_rate"]))
         metric_card(cols[2], "Sharpe Ratio", metrics["sharpe"],
                     color=_color_for(metrics["sharpe"]))
-        metric_card(cols[3], "Max Drawdown", metrics["max_drawdown"], pct=True,
+        metric_card(cols[3], "Sortino Ratio", metrics["sortino"],
+                    color=_color_for(metrics["sortino"]))
+        metric_card(cols[4], "Calmar Ratio", metrics["calmar"],
+                    color=_color_for(metrics["calmar"]))
+        st.markdown("<div style='margin-top:6px'></div>", unsafe_allow_html=True)
+        # Metric cards — row 2
+        cols2 = st.columns(4)
+        metric_card(cols2[0], "Max Drawdown", metrics["max_drawdown"], pct=True,
                     color="neg" if metrics["max_drawdown"] < 0 else "neutral")
-        metric_card(cols[4], "# Trades", metrics["num_trades"], color="neutral")
-        metric_card(cols[5], "Avg PnL%", metrics["avg_pnl_pct"], pct=True,
+        metric_card(cols2[1], "# Trades", metrics["num_trades"], color="neutral")
+        metric_card(cols2[2], "Avg PnL%", metrics["avg_pnl_pct"], pct=True,
                     color=_color_for(metrics["avg_pnl_pct"]))
-        metric_card(cols[6], "Profit Factor", metrics["profit_factor"],
+        metric_card(cols2[3], "Profit Factor", metrics["profit_factor"],
                     color=_color_for(metrics["profit_factor"]))
 
         st.markdown("<div style='margin-top:8px'></div>", unsafe_allow_html=True)
@@ -619,8 +626,8 @@ with tab1:
             st.plotly_chart(fig_cmp, use_container_width=True)
 
             # Metrics comparison table
-            metric_keys = ["total_return", "win_rate", "sharpe", "max_drawdown", "num_trades", "avg_pnl_pct", "profit_factor"]
-            metric_labels = ["Total Return %", "Win Rate %", "Sharpe", "Max Drawdown %", "# Trades", "Avg PnL %", "Profit Factor"]
+            metric_keys = ["total_return", "win_rate", "sharpe", "sortino", "calmar", "max_drawdown", "num_trades", "avg_pnl_pct", "profit_factor"]
+            metric_labels = ["Total Return %", "Win Rate %", "Sharpe", "Sortino", "Calmar", "Max Drawdown %", "# Trades", "Avg PnL %", "Profit Factor"]
             rows = {}
             for name, (_, m) in cmp_results.items():
                 rows[name] = [m[k] for k in metric_keys]
