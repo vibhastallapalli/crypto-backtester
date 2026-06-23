@@ -12,6 +12,7 @@ from strategies import (
     BacktestResult,
     bollinger_bands,
     compute_metrics,
+    ema_crossover,
     ma_crossover,
     macd_crossover,
     rsi_mean_reversion,
@@ -169,7 +170,7 @@ st.markdown(
 
 # ── Constants ──────────────────────────────────────────────────────────────────
 ASSETS = ["BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "AVAX", "DOGE"]
-STRATEGIES = ["MA Crossover", "RSI Mean Reversion", "Volume Breakout", "MACD Crossover", "Bollinger Bands"]
+STRATEGIES = ["MA Crossover", "EMA Crossover", "RSI Mean Reversion", "Volume Breakout", "MACD Crossover", "Bollinger Bands"]
 D_START = datetime.date(2022, 1, 1)
 D_END = datetime.date(2024, 12, 31)
 
@@ -280,6 +281,11 @@ with tab1:
         fast_ma = p1.slider("Fast MA", 2, 50, 10)
         slow_ma = p2.slider("Slow MA", 10, 200, 30)
         params = {"fast": fast_ma, "slow": slow_ma}
+    elif strategy == "EMA Crossover":
+        p1, p2, p3 = st.columns([1, 1, 2])
+        fast_ema = p1.slider("Fast EMA", 2, 50, 9)
+        slow_ema = p2.slider("Slow EMA", 5, 200, 21)
+        params = {"fast": fast_ema, "slow": slow_ema}
     elif strategy == "RSI Mean Reversion":
         p1, p2, p3 = st.columns(3)
         rsi_period = p1.slider("RSI Period", 5, 50, 14)
@@ -334,6 +340,8 @@ with tab1:
             sl_tp = {"stop_loss": stop_loss_pct, "take_profit": take_profit_pct}
             if strategy == "MA Crossover":
                 result: BacktestResult = ma_crossover(df, asset, **params, **sl_tp)
+            elif strategy == "EMA Crossover":
+                result = ema_crossover(df, asset, **params, **sl_tp)
             elif strategy == "RSI Mean Reversion":
                 result = rsi_mean_reversion(df, asset, **params, **sl_tp)
             elif strategy == "Volume Breakout":
@@ -396,7 +404,18 @@ with tab1:
             line=dict(color=ACCENT, width=1.5),
         ))
 
-        if cur_strat == "MA Crossover" and "fast_ma" in sig_df.columns:
+        if cur_strat == "EMA Crossover" and "fast_ema" in sig_df.columns:
+            fig_p.add_trace(go.Scatter(
+                x=sig_df.index, y=sig_df["fast_ema"],
+                mode="lines", name=f"Fast EMA ({cur_params['fast']})",
+                line=dict(color=YELLOW, width=1.2, dash="dot"),
+            ))
+            fig_p.add_trace(go.Scatter(
+                x=sig_df.index, y=sig_df["slow_ema"],
+                mode="lines", name=f"Slow EMA ({cur_params['slow']})",
+                line=dict(color="#ff6b81", width=1.2, dash="dot"),
+            ))
+        elif cur_strat == "MA Crossover" and "fast_ma" in sig_df.columns:
             fig_p.add_trace(go.Scatter(
                 x=sig_df.index, y=sig_df["fast_ma"],
                 mode="lines", name=f"Fast MA ({cur_params['fast']})",
@@ -555,6 +574,7 @@ with tab1:
                 cmp_results = {}
                 for strat_name, strat_fn, strat_params in [
                     ("MA Crossover", ma_crossover, {"fast": 10, "slow": 30}),
+                    ("EMA Crossover", ema_crossover, {"fast": 9, "slow": 21}),
                     ("RSI Mean Reversion", rsi_mean_reversion, {"period": 14, "oversold": 30, "overbought": 70}),
                     ("Volume Breakout", volume_breakout, {"multiplier": 2.0, "lookback": 20}),
                     ("MACD Crossover", macd_crossover, {"fast": 12, "slow": 26, "signal": 9}),
@@ -574,7 +594,7 @@ with tab1:
             )
 
             # Overlaid equity curves
-            palette = [ACCENT, YELLOW, "#ff6b81", "#a29bfe", "#fd79a8"]
+            palette = [ACCENT, YELLOW, "#ff6b81", "#a29bfe", "#fd79a8", "#55efc4"]
             fig_cmp = go.Figure()
             for (name, (res, _)), color in zip(cmp_results.items(), palette):
                 fig_cmp.add_trace(go.Scatter(

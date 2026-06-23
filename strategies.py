@@ -167,6 +167,18 @@ def bollinger_bands(
     return _simulate(df, "signal", asset, "Bollinger Bands", stop_loss, take_profit)
 
 
+def ema_crossover(df: pd.DataFrame, asset: str, fast: int = 9, slow: int = 21, stop_loss: float = 0.0, take_profit: float = 0.0) -> BacktestResult:
+    df = df.copy()
+    df["fast_ema"] = df["Close"].ewm(span=fast, adjust=False).mean()
+    df["slow_ema"] = df["Close"].ewm(span=slow, adjust=False).mean()
+    cross_up = (df["fast_ema"] > df["slow_ema"]) & (df["fast_ema"].shift(1) <= df["slow_ema"].shift(1))
+    cross_dn = (df["fast_ema"] < df["slow_ema"]) & (df["fast_ema"].shift(1) >= df["slow_ema"].shift(1))
+    df["signal"] = "hold"
+    df.loc[cross_up, "signal"] = "buy"
+    df.loc[cross_dn, "signal"] = "sell"
+    return _simulate(df, "signal", asset, "EMA Crossover", stop_loss, take_profit)
+
+
 def macd_crossover(
     df: pd.DataFrame,
     asset: str,
