@@ -785,7 +785,8 @@ with tab2:
             with st.spinner("Fetching price data for all assets…"):
                 corr_df = correlation_matrix(pa_assets, s, e)
                 stats_df = risk_return_stats(pa_assets, s, e)
-            st.session_state.update(pa_corr=corr_df, pa_stats=stats_df)
+                pa_prices = {a: fetch_prices(a, s, e)["Close"] for a in pa_assets}
+            st.session_state.update(pa_corr=corr_df, pa_stats=stats_df, pa_prices=pa_prices)
 
     corr_df: pd.DataFrame = st.session_state.get("pa_corr")
     stats_df: pd.DataFrame = st.session_state.get("pa_stats")
@@ -876,6 +877,30 @@ with tab2:
                 ),
                 use_container_width=True,
             )
+
+        # ── Normalized price performance ───────────────────────────────────────
+        pa_prices: dict = st.session_state.get("pa_prices", {})
+        if pa_prices:
+            price_palette = [ACCENT, YELLOW, "#ff6b81", "#a29bfe", "#fd79a8", "#55efc4", "#fdcb6e", "#e17055"]
+            fig_norm = go.Figure()
+            for (asset_name, series), color in zip(pa_prices.items(), price_palette):
+                if series.empty:
+                    continue
+                norm = series / float(series.iloc[0])
+                fig_norm.add_trace(go.Scatter(
+                    x=norm.index, y=norm,
+                    mode="lines", name=asset_name,
+                    line=dict(color=color, width=1.8),
+                ))
+            fig_norm.add_hline(y=1.0, line_dash="dot", line_color=BORDER, opacity=0.5)
+            apply_plotly_layout(
+                fig_norm,
+                title="Normalized Price Performance (base = 1)",
+                yaxis_title="Return (normalized)",
+                height=380,
+            )
+            st.plotly_chart(fig_norm, use_container_width=True)
+
     elif analyze_btn is False:
         st.info("Select assets and a date range, then click Analyze Portfolio.")
 
