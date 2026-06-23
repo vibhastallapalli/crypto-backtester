@@ -604,10 +604,47 @@ with tab1:
             )
             st.plotly_chart(fig_rs, use_container_width=True)
 
+        # ── Per-trade PnL bars + cumulative line ──────────────────────────────
+        if result.trades:
+            pnl_vals = [t["pnl_pct"] for t in result.trades]
+            trade_nums = list(range(1, len(pnl_vals) + 1))
+            cum_pnl = list(np.cumsum(pnl_vals))
+            bar_colors = [ACCENT if v >= 0 else RED for v in pnl_vals]
+
+            fig_seq = go.Figure()
+            fig_seq.add_trace(go.Bar(
+                x=trade_nums, y=pnl_vals,
+                marker_color=bar_colors,
+                marker_line=dict(color=BORDER, width=0.4),
+                name="Trade PnL %",
+            ))
+            fig_seq.add_trace(go.Scatter(
+                x=trade_nums, y=cum_pnl,
+                mode="lines", name="Cumulative PnL %",
+                line=dict(color=YELLOW, width=2),
+                yaxis="y2",
+            ))
+            fig_seq.add_hline(y=0, line_dash="dot", line_color=MUTED, opacity=0.5)
+            apply_plotly_layout(
+                fig_seq,
+                title="Per-Trade PnL % with Cumulative (right axis)",
+                xaxis_title="Trade #",
+                yaxis_title="PnL %",
+                yaxis2=dict(
+                    title="Cumulative PnL %",
+                    overlaying="y", side="right",
+                    gridcolor=BORDER, showgrid=False,
+                    tickfont=dict(color=YELLOW),
+                    titlefont=dict(color=YELLOW),
+                ),
+                height=280,
+                margin=dict(l=50, r=60, t=45, b=35),
+            )
+            st.plotly_chart(fig_seq, use_container_width=True)
+
         # ── Trade PnL distribution ─────────────────────────────────────────────
         if result.trades:
             pnl_vals = [t["pnl_pct"] for t in result.trades]
-            bar_colors = [ACCENT if v >= 0 else RED for v in pnl_vals]
             fig_hist = go.Figure()
             fig_hist.add_trace(go.Histogram(
                 x=pnl_vals,
