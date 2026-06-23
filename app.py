@@ -551,6 +551,36 @@ with tab1:
         )
         st.plotly_chart(fig_dd, use_container_width=True)
 
+        # ── Rolling Sharpe ratio ───────────────────────────────────────────────
+        window = 30
+        daily_rets = equity.pct_change().dropna()
+        rolling_mean = daily_rets.rolling(window).mean()
+        rolling_std = daily_rets.rolling(window).std()
+        rolling_sharpe = (rolling_mean * 252) / (rolling_std * np.sqrt(252))
+        rolling_sharpe = rolling_sharpe.dropna()
+
+        if len(rolling_sharpe) > 1:
+            rs_colors = [ACCENT if v >= 0 else RED for v in rolling_sharpe]
+            fig_rs = go.Figure()
+            fig_rs.add_trace(go.Scatter(
+                x=rolling_sharpe.index, y=rolling_sharpe,
+                mode="lines", name=f"{window}d Rolling Sharpe",
+                line=dict(color=ACCENT, width=1.5),
+                fill="tozeroy", fillcolor="rgba(0,212,170,0.06)",
+            ))
+            fig_rs.add_hline(y=0, line_dash="dot", line_color=MUTED, opacity=0.5)
+            fig_rs.add_hline(y=1, line_dash="dash", line_color=YELLOW, opacity=0.6,
+                             annotation_text="Sharpe = 1", annotation_font_color=YELLOW,
+                             annotation_position="bottom right")
+            apply_plotly_layout(
+                fig_rs,
+                title=f"Rolling {window}-Day Sharpe Ratio",
+                yaxis_title="Sharpe Ratio",
+                height=240,
+                margin=dict(l=50, r=20, t=45, b=35),
+            )
+            st.plotly_chart(fig_rs, use_container_width=True)
+
         # ── Trade PnL distribution ─────────────────────────────────────────────
         if result.trades:
             pnl_vals = [t["pnl_pct"] for t in result.trades]
