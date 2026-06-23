@@ -551,6 +551,35 @@ with tab1:
         )
         st.plotly_chart(fig_dd, use_container_width=True)
 
+        # ── Trade PnL distribution ─────────────────────────────────────────────
+        if result.trades:
+            pnl_vals = [t["pnl_pct"] for t in result.trades]
+            bar_colors = [ACCENT if v >= 0 else RED for v in pnl_vals]
+            fig_hist = go.Figure()
+            fig_hist.add_trace(go.Histogram(
+                x=pnl_vals,
+                nbinsx=max(10, len(pnl_vals) // 3),
+                marker_color=[ACCENT if v >= 0 else RED for v in pnl_vals],
+                marker_line=dict(color=BORDER, width=0.5),
+                name="Trade PnL %",
+            ))
+            fig_hist.add_vline(x=0, line_dash="dot", line_color=MUTED, opacity=0.7)
+            mean_pnl = float(np.mean(pnl_vals))
+            fig_hist.add_vline(
+                x=mean_pnl, line_dash="dash", line_color=YELLOW,
+                annotation_text=f"Mean: {mean_pnl:.2f}%",
+                annotation_font_color=YELLOW, annotation_position="top right",
+            )
+            apply_plotly_layout(
+                fig_hist,
+                title="Trade PnL Distribution (%)",
+                xaxis_title="PnL %",
+                yaxis_title="Count",
+                height=240,
+                margin=dict(l=50, r=20, t=45, b=35),
+            )
+            st.plotly_chart(fig_hist, use_container_width=True)
+
         # ── Strategy Comparison ────────────────────────────────────────────────
         st.markdown("<div style='margin-top:4px'></div>", unsafe_allow_html=True)
 
