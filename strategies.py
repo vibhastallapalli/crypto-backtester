@@ -167,6 +167,38 @@ def bollinger_bands(
     return _simulate(df, "signal", asset, "Bollinger Bands", stop_loss, take_profit)
 
 
+def stochastic_oscillator(
+    df: pd.DataFrame,
+    asset: str,
+    k_period: int = 14,
+    d_period: int = 3,
+    oversold: int = 20,
+    overbought: int = 80,
+    stop_loss: float = 0.0,
+    take_profit: float = 0.0,
+) -> BacktestResult:
+    df = df.copy()
+    low_min = df["Low"].rolling(k_period).min()
+    high_max = df["High"].rolling(k_period).max()
+    df["stoch_k"] = 100 * (df["Close"] - low_min) / (high_max - low_min).replace(0, np.nan)
+    df["stoch_d"] = df["stoch_k"].rolling(d_period).mean()
+    df = df.dropna(subset=["stoch_k", "stoch_d"]).copy()
+    cross_up = (
+        (df["stoch_k"] > df["stoch_d"]) &
+        (df["stoch_k"].shift(1) <= df["stoch_d"].shift(1)) &
+        (df["stoch_k"] < oversold)
+    )
+    cross_dn = (
+        (df["stoch_k"] < df["stoch_d"]) &
+        (df["stoch_k"].shift(1) >= df["stoch_d"].shift(1)) &
+        (df["stoch_k"] > overbought)
+    )
+    df["signal"] = "hold"
+    df.loc[cross_up, "signal"] = "buy"
+    df.loc[cross_dn, "signal"] = "sell"
+    return _simulate(df, "signal", asset, "Stochastic", stop_loss, take_profit)
+
+
 def ema_crossover(df: pd.DataFrame, asset: str, fast: int = 9, slow: int = 21, stop_loss: float = 0.0, take_profit: float = 0.0) -> BacktestResult:
     df = df.copy()
     df["fast_ema"] = df["Close"].ewm(span=fast, adjust=False).mean()

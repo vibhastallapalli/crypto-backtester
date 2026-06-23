@@ -16,6 +16,7 @@ from strategies import (
     ma_crossover,
     macd_crossover,
     rsi_mean_reversion,
+    stochastic_oscillator,
     volume_breakout,
 )
 
@@ -170,7 +171,7 @@ st.markdown(
 
 # ── Constants ──────────────────────────────────────────────────────────────────
 ASSETS = ["BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "AVAX", "DOGE", "LTC", "DOT", "LINK", "MATIC", "UNI"]
-STRATEGIES = ["MA Crossover", "EMA Crossover", "RSI Mean Reversion", "Volume Breakout", "MACD Crossover", "Bollinger Bands"]
+STRATEGIES = ["MA Crossover", "EMA Crossover", "RSI Mean Reversion", "Stochastic Oscillator", "Volume Breakout", "MACD Crossover", "Bollinger Bands"]
 D_START = datetime.date(2022, 1, 1)
 D_END = datetime.date(2024, 12, 31)
 
@@ -292,6 +293,13 @@ with tab1:
         oversold = p2.slider("Oversold", 10, 45, 30)
         overbought = p3.slider("Overbought", 55, 90, 70)
         params = {"period": rsi_period, "oversold": oversold, "overbought": overbought}
+    elif strategy == "Stochastic Oscillator":
+        p1, p2, p3, p4 = st.columns(4)
+        k_period = p1.slider("%K Period", 5, 50, 14)
+        d_period = p2.slider("%D Period", 1, 10, 3)
+        stoch_os = p3.slider("Oversold", 5, 40, 20)
+        stoch_ob = p4.slider("Overbought", 60, 95, 80)
+        params = {"k_period": k_period, "d_period": d_period, "oversold": stoch_os, "overbought": stoch_ob}
     elif strategy == "Volume Breakout":
         p1, p2, p3 = st.columns([1, 1, 2])
         vol_mult = p1.slider("Volume Multiplier", 1.0, 5.0, 2.0, 0.1)
@@ -344,6 +352,8 @@ with tab1:
                 result = ema_crossover(df, asset, **params, **sl_tp)
             elif strategy == "RSI Mean Reversion":
                 result = rsi_mean_reversion(df, asset, **params, **sl_tp)
+            elif strategy == "Stochastic Oscillator":
+                result = stochastic_oscillator(df, asset, **params, **sl_tp)
             elif strategy == "Volume Breakout":
                 result = volume_breakout(df, asset, **params, **sl_tp)
             elif strategy == "MACD Crossover":
@@ -411,7 +421,20 @@ with tab1:
             line=dict(color=ACCENT, width=1.5),
         ))
 
-        if cur_strat == "EMA Crossover" and "fast_ema" in sig_df.columns:
+        if cur_strat == "Stochastic Oscillator" and "stoch_k" in sig_df.columns:
+            scale = sig_df["Close"].max() / 100
+            mid = sig_df["Close"].min()
+            fig_p.add_trace(go.Scatter(
+                x=sig_df.index, y=mid + sig_df["stoch_k"] * scale * 0.3,
+                mode="lines", name="%K (scaled)",
+                line=dict(color=YELLOW, width=1, dash="dot"), opacity=0.7,
+            ))
+            fig_p.add_trace(go.Scatter(
+                x=sig_df.index, y=mid + sig_df["stoch_d"] * scale * 0.3,
+                mode="lines", name="%D (scaled)",
+                line=dict(color="#a29bfe", width=1, dash="dot"), opacity=0.7,
+            ))
+        elif cur_strat == "EMA Crossover" and "fast_ema" in sig_df.columns:
             fig_p.add_trace(go.Scatter(
                 x=sig_df.index, y=sig_df["fast_ema"],
                 mode="lines", name=f"Fast EMA ({cur_params['fast']})",
@@ -642,6 +665,7 @@ with tab1:
                     ("MA Crossover", ma_crossover, {"fast": 10, "slow": 30}),
                     ("EMA Crossover", ema_crossover, {"fast": 9, "slow": 21}),
                     ("RSI Mean Reversion", rsi_mean_reversion, {"period": 14, "oversold": 30, "overbought": 70}),
+                    ("Stochastic", stochastic_oscillator, {"k_period": 14, "d_period": 3, "oversold": 20, "overbought": 80}),
                     ("Volume Breakout", volume_breakout, {"multiplier": 2.0, "lookback": 20}),
                     ("MACD Crossover", macd_crossover, {"fast": 12, "slow": 26, "signal": 9}),
                     ("Bollinger Bands", bollinger_bands, {"period": 20, "std_dev": 2.0}),
@@ -660,7 +684,7 @@ with tab1:
             )
 
             # Overlaid equity curves
-            palette = [ACCENT, YELLOW, "#ff6b81", "#a29bfe", "#fd79a8", "#55efc4"]
+            palette = [ACCENT, YELLOW, "#ff6b81", "#a29bfe", "#fd79a8", "#55efc4", "#fdcb6e"]
             fig_cmp = go.Figure()
             for (name, (res, _)), color in zip(cmp_results.items(), palette):
                 fig_cmp.add_trace(go.Scatter(
