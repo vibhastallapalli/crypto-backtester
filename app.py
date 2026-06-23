@@ -169,7 +169,7 @@ st.markdown(
 )
 
 # ── Constants ──────────────────────────────────────────────────────────────────
-ASSETS = ["BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "AVAX", "DOGE"]
+ASSETS = ["BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "AVAX", "DOGE", "LTC", "DOT", "LINK", "MATIC", "UNI"]
 STRATEGIES = ["MA Crossover", "EMA Crossover", "RSI Mean Reversion", "Volume Breakout", "MACD Crossover", "Bollinger Bands"]
 D_START = datetime.date(2022, 1, 1)
 D_END = datetime.date(2024, 12, 31)

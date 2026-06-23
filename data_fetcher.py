@@ -11,6 +11,11 @@ TICKER_MAP = {
     "ADA": "ADA-USD",
     "AVAX": "AVAX-USD",
     "DOGE": "DOGE-USD",
+    "LTC": "LTC-USD",
+    "DOT": "DOT-USD",
+    "LINK": "LINK-USD",
+    "MATIC": "MATIC-USD",
+    "UNI": "UNI-USD",
 }
 
 
