@@ -18,6 +18,7 @@ from strategies import (
     rsi_mean_reversion,
     stochastic_oscillator,
     volume_breakout,
+    zscore_mean_reversion,
 )
 
 # ── Page config ────────────────────────────────────────────────────────────────
@@ -171,7 +172,7 @@ st.markdown(
 
 # ── Constants ──────────────────────────────────────────────────────────────────
 ASSETS = ["BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "AVAX", "DOGE", "LTC", "DOT", "LINK", "MATIC", "UNI"]
-STRATEGIES = ["MA Crossover", "EMA Crossover", "RSI Mean Reversion", "Stochastic Oscillator", "Volume Breakout", "MACD Crossover", "Bollinger Bands"]
+STRATEGIES = ["MA Crossover", "EMA Crossover", "RSI Mean Reversion", "Stochastic Oscillator", "Volume Breakout", "MACD Crossover", "Bollinger Bands", "Z-Score MR"]
 D_START = datetime.date(2022, 1, 1)
 D_END = datetime.date(2024, 12, 31)
 
@@ -311,11 +312,17 @@ with tab1:
         macd_slow = p2.slider("Slow EMA", 10, 100, 26)
         macd_sig = p3.slider("Signal EMA", 3, 30, 9)
         params = {"fast": macd_fast, "slow": macd_slow, "signal": macd_sig}
-    else:  # Bollinger Bands
+    elif strategy == "Bollinger Bands":
         p1, p2, p3 = st.columns([1, 1, 2])
         bb_period = p1.slider("Period", 5, 50, 20)
         bb_std = p2.slider("Std Dev", 1.0, 4.0, 2.0, 0.1)
         params = {"period": bb_period, "std_dev": bb_std}
+    else:  # Z-Score MR
+        p1, p2, p3 = st.columns([1, 1, 2])
+        zs_window = p1.slider("Window", 5, 100, 20)
+        zs_threshold = p2.slider("Threshold", 0.5, 4.0, 2.0, 0.1,
+                                  help="Buy when Z-score < −threshold; sell when Z-score crosses 0.")
+        params = {"window": zs_window, "threshold": zs_threshold}
 
     st.markdown(
         f'<p style="color:{MUTED};font-size:0.8rem;margin:6px 0 2px;">Risk Controls</p>',
@@ -363,8 +370,10 @@ with tab1:
                 result = volume_breakout(df, asset, **params, **sl_tp)
             elif strategy == "MACD Crossover":
                 result = macd_crossover(df, asset, **params, **sl_tp)
-            else:
+            elif strategy == "Bollinger Bands":
                 result = bollinger_bands(df, asset, **params, **sl_tp)
+            else:
+                result = zscore_mean_reversion(df, asset, **params, **sl_tp)
 
         if result.trades:
             save_trades(result.trades)
@@ -510,6 +519,17 @@ with tab1:
                 mode="lines", name="Signal (scaled)",
                 line=dict(color="#fdcb6e", width=1, dash="dot"),
                 opacity=0.6,
+            ))
+        elif cur_strat == "Z-Score MR" and "zscore" in sig_df.columns:
+            price_mid = sig_df["Close"].mean()
+            price_range = sig_df["Close"].max() - sig_df["Close"].min()
+            zs_scale = price_range / (sig_df["zscore"].abs().max() * 4 or 1)
+            fig_p.add_trace(go.Scatter(
+                x=sig_df.index,
+                y=price_mid + sig_df["zscore"] * zs_scale,
+                mode="lines", name="Z-Score (scaled)",
+                line=dict(color="#a29bfe", width=1, dash="dot"),
+                opacity=0.65,
             ))
 
         if not buys.empty:
@@ -742,6 +762,7 @@ with tab1:
                     ("Volume Breakout", volume_breakout, {"multiplier": 2.0, "lookback": 20}),
                     ("MACD Crossover", macd_crossover, {"fast": 12, "slow": 26, "signal": 9}),
                     ("Bollinger Bands", bollinger_bands, {"period": 20, "std_dev": 2.0}),
+                    ("Z-Score MR", zscore_mean_reversion, {"window": 20, "threshold": 2.0}),
                 ]:
                     r = strat_fn(df, cur_asset, **strat_params)
                     cmp_results[strat_name] = (r, compute_metrics(r))
@@ -757,7 +778,7 @@ with tab1:
             )
 
             # Overlaid equity curves
-            palette = [ACCENT, YELLOW, "#ff6b81", "#a29bfe", "#fd79a8", "#55efc4", "#fdcb6e"]
+            palette = [ACCENT, YELLOW, "#ff6b81", "#a29bfe", "#fd79a8", "#55efc4", "#fdcb6e", "#74b9ff"]
             fig_cmp = go.Figure()
             for (name, (res, _)), color in zip(cmp_results.items(), palette):
                 fig_cmp.add_trace(go.Scatter(
@@ -1153,6 +1174,7 @@ with tab5:
         "Volume Breakout": {"multiplier": 2.0, "lookback": 20},
         "MACD Crossover": {"fast": 12, "slow": 26, "signal": 9},
         "Bollinger Bands": {"period": 20, "std_dev": 2.0},
+        "Z-Score MR": {"window": 20, "threshold": 2.0},
     }
     BATCH_FN_MAP = {
         "MA Crossover": ma_crossover,
@@ -1162,6 +1184,7 @@ with tab5:
         "Volume Breakout": volume_breakout,
         "MACD Crossover": macd_crossover,
         "Bollinger Bands": bollinger_bands,
+        "Z-Score MR": zscore_mean_reversion,
     }
 
     run_batch_btn = st.button("▶  Run Batch", key="run_batch")

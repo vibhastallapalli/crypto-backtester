@@ -272,6 +272,32 @@ def macd_crossover(
     return _simulate(df, "signal", asset, "MACD Crossover", stop_loss, take_profit, atr_trail_mult, atr_period)
 
 
+def zscore_mean_reversion(
+    df: pd.DataFrame,
+    asset: str,
+    window: int = 20,
+    threshold: float = 2.0,
+    stop_loss: float = 0.0,
+    take_profit: float = 0.0,
+    atr_trail_mult: float = 0.0,
+    atr_period: int = 14,
+) -> BacktestResult:
+    df = df.copy()
+    rolling_mean = df["Close"].rolling(window).mean()
+    rolling_std = df["Close"].rolling(window).std()
+    df["zscore"] = (df["Close"] - rolling_mean) / rolling_std.replace(0, np.nan)
+    df = df.dropna(subset=["zscore"]).copy()
+
+    # Buy when z-score crosses below -threshold (oversold), sell when it crosses back above 0
+    cross_down = (df["zscore"] < -threshold) & (df["zscore"].shift(1) >= -threshold)
+    cross_zero = (df["zscore"] > 0) & (df["zscore"].shift(1) <= 0)
+
+    df["signal"] = "hold"
+    df.loc[cross_down, "signal"] = "buy"
+    df.loc[cross_zero, "signal"] = "sell"
+    return _simulate(df, "signal", asset, "Z-Score MR", stop_loss, take_profit, atr_trail_mult, atr_period)
+
+
 def compute_metrics(result: BacktestResult) -> dict:
     equity = result.equity_curve
     trades = result.trades
