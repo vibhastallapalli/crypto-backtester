@@ -321,11 +321,15 @@ with tab1:
         f'<p style="color:{MUTED};font-size:0.8rem;margin:6px 0 2px;">Risk Controls</p>',
         unsafe_allow_html=True,
     )
-    rc1, rc2, rc3 = st.columns([1, 1, 2])
+    rc1, rc2, rc3, rc4 = st.columns([1, 1, 1, 1])
     stop_loss_pct = rc1.slider("Stop Loss %", 0.0, 30.0, 0.0, 0.5,
                                 help="0 = disabled. Exit trade if loss exceeds this %.")
     take_profit_pct = rc2.slider("Take Profit %", 0.0, 100.0, 0.0, 1.0,
                                   help="0 = disabled. Exit trade if gain exceeds this %.")
+    atr_trail_mult = rc3.slider("ATR Trail Mult", 0.0, 5.0, 0.0, 0.5,
+                                 help="0 = disabled. Trailing stop = price − mult × ATR. Overrides fixed stop when triggered.")
+    atr_period = rc4.slider("ATR Period", 5, 30, 14,
+                             help="Lookback period for ATR calculation.")
 
     st.markdown("")
     run_btn = st.button("▶  Run Backtest", key="run_bt")
@@ -345,7 +349,8 @@ with tab1:
             st.stop()
 
         with st.spinner("Running backtest…"):
-            sl_tp = {"stop_loss": stop_loss_pct, "take_profit": take_profit_pct}
+            sl_tp = {"stop_loss": stop_loss_pct, "take_profit": take_profit_pct,
+                     "atr_trail_mult": atr_trail_mult, "atr_period": atr_period}
             if strategy == "MA Crossover":
                 result: BacktestResult = ma_crossover(df, asset, **params, **sl_tp)
             elif strategy == "EMA Crossover":

@@ -20,6 +20,22 @@ def _calc_rsi(close: pd.Series, period: int = 14) -> pd.Series:
     return 100 - (100 / (1 + rs))
 
 
+def _calc_atr(df: pd.DataFrame, period: int = 14) -> np.ndarray:
+    high = df["High"].values.astype(float)
+    low = df["Low"].values.astype(float)
+    close = df["Close"].values.astype(float)
+    n = len(df)
+    tr = np.zeros(n)
+    for i in range(1, n):
+        tr[i] = max(high[i] - low[i], abs(high[i] - close[i - 1]), abs(low[i] - close[i - 1]))
+    tr[0] = high[0] - low[0]
+    atr = np.zeros(n)
+    atr[period - 1] = tr[:period].mean()
+    for i in range(period, n):
+        atr[i] = (atr[i - 1] * (period - 1) + tr[i]) / period
+    return atr
+
+
 def _simulate(
     df: pd.DataFrame,
     signal_col: str,
@@ -27,11 +43,15 @@ def _simulate(
     strategy_name: str,
     stop_loss: float = 0.0,
     take_profit: float = 0.0,
+    atr_trail_mult: float = 0.0,
+    atr_period: int = 14,
 ) -> BacktestResult:
     close = df["Close"].values.astype(float)
     signals = df[signal_col].values
     dates = df.index
     n = len(df)
+
+    atr = _calc_atr(df, atr_period) if atr_trail_mult > 0 else None
 
     equity = np.ones(n)
     in_trade = False
@@ -39,6 +59,7 @@ def _simulate(
     entry_idx = 0
     entry_equity = 1.0
     current_equity = 1.0
+    trail_stop = 0.0
     trades = []
 
     for i in range(1, n):
@@ -50,14 +71,20 @@ def _simulate(
             entry_price = price
             entry_idx = i
             entry_equity = current_equity
+            trail_stop = price - atr_trail_mult * atr[i] if atr_trail_mult > 0 else 0.0
 
         if in_trade:
+            if atr_trail_mult > 0 and atr[i] > 0:
+                new_stop = price - atr_trail_mult * atr[i]
+                trail_stop = max(trail_stop, new_stop)
+
             current_equity = entry_equity * (price / entry_price)
             equity[i] = current_equity
             pnl_pct = (price - entry_price) / entry_price
             sl_hit = stop_loss > 0 and pnl_pct <= -stop_loss / 100
             tp_hit = take_profit > 0 and pnl_pct >= take_profit / 100
-            exit_signal = (sig == "sell" and i > entry_idx) or sl_hit or tp_hit
+            atr_hit = atr_trail_mult > 0 and price <= trail_stop and i > entry_idx
+            exit_signal = (sig == "sell" and i > entry_idx) or sl_hit or tp_hit or atr_hit
             if exit_signal:
                 trades.append({
                     "asset": asset,
@@ -80,7 +107,7 @@ def _simulate(
     )
 
 
-def ma_crossover(df: pd.DataFrame, asset: str, fast: int = 10, slow: int = 30, stop_loss: float = 0.0, take_profit: float = 0.0) -> BacktestResult:
+def ma_crossover(df: pd.DataFrame, asset: str, fast: int = 10, slow: int = 30, stop_loss: float = 0.0, take_profit: float = 0.0, atr_trail_mult: float = 0.0, atr_period: int = 14) -> BacktestResult:
     df = df.copy()
     df["fast_ma"] = df["Close"].rolling(fast).mean()
     df["slow_ma"] = df["Close"].rolling(slow).mean()
@@ -90,7 +117,7 @@ def ma_crossover(df: pd.DataFrame, asset: str, fast: int = 10, slow: int = 30, s
     df.loc[cross_up, "signal"] = "buy"
     df.loc[cross_dn, "signal"] = "sell"
     df = df.dropna(subset=["fast_ma", "slow_ma"]).copy()
-    return _simulate(df, "signal", asset, "MA Crossover", stop_loss, take_profit)
+    return _simulate(df, "signal", asset, "MA Crossover", stop_loss, take_profit, atr_trail_mult, atr_period)
 
 
 def rsi_mean_reversion(
@@ -101,6 +128,8 @@ def rsi_mean_reversion(
     overbought: int = 70,
     stop_loss: float = 0.0,
     take_profit: float = 0.0,
+    atr_trail_mult: float = 0.0,
+    atr_period: int = 14,
 ) -> BacktestResult:
     df = df.copy()
     df["rsi"] = _calc_rsi(df["Close"], period)
@@ -110,7 +139,7 @@ def rsi_mean_reversion(
     df.loc[cross_os, "signal"] = "buy"
     df.loc[cross_ob, "signal"] = "sell"
     df = df.dropna(subset=["rsi"]).copy()
-    return _simulate(df, "signal", asset, "RSI Mean Reversion", stop_loss, take_profit)
+    return _simulate(df, "signal", asset, "RSI Mean Reversion", stop_loss, take_profit, atr_trail_mult, atr_period)
 
 
 def volume_breakout(
@@ -120,6 +149,8 @@ def volume_breakout(
     lookback: int = 20,
     stop_loss: float = 0.0,
     take_profit: float = 0.0,
+    atr_trail_mult: float = 0.0,
+    atr_period: int = 14,
 ) -> BacktestResult:
     df = df.copy()
     df["avg_vol"] = df["Volume"].rolling(lookback).mean()
@@ -142,7 +173,7 @@ def volume_breakout(
             in_trade = False
 
     df["signal"] = signals
-    return _simulate(df, "signal", asset, "Volume Breakout", stop_loss, take_profit)
+    return _simulate(df, "signal", asset, "Volume Breakout", stop_loss, take_profit, atr_trail_mult, atr_period)
 
 
 def bollinger_bands(
@@ -152,6 +183,8 @@ def bollinger_bands(
     std_dev: float = 2.0,
     stop_loss: float = 0.0,
     take_profit: float = 0.0,
+    atr_trail_mult: float = 0.0,
+    atr_period: int = 14,
 ) -> BacktestResult:
     df = df.copy()
     df["bb_mid"] = df["Close"].rolling(period).mean()
@@ -164,7 +197,7 @@ def bollinger_bands(
     df["signal"] = "hold"
     df.loc[touch_lower, "signal"] = "buy"
     df.loc[touch_upper, "signal"] = "sell"
-    return _simulate(df, "signal", asset, "Bollinger Bands", stop_loss, take_profit)
+    return _simulate(df, "signal", asset, "Bollinger Bands", stop_loss, take_profit, atr_trail_mult, atr_period)
 
 
 def stochastic_oscillator(
@@ -176,6 +209,8 @@ def stochastic_oscillator(
     overbought: int = 80,
     stop_loss: float = 0.0,
     take_profit: float = 0.0,
+    atr_trail_mult: float = 0.0,
+    atr_period: int = 14,
 ) -> BacktestResult:
     df = df.copy()
     low_min = df["Low"].rolling(k_period).min()
@@ -196,10 +231,10 @@ def stochastic_oscillator(
     df["signal"] = "hold"
     df.loc[cross_up, "signal"] = "buy"
     df.loc[cross_dn, "signal"] = "sell"
-    return _simulate(df, "signal", asset, "Stochastic", stop_loss, take_profit)
+    return _simulate(df, "signal", asset, "Stochastic", stop_loss, take_profit, atr_trail_mult, atr_period)
 
 
-def ema_crossover(df: pd.DataFrame, asset: str, fast: int = 9, slow: int = 21, stop_loss: float = 0.0, take_profit: float = 0.0) -> BacktestResult:
+def ema_crossover(df: pd.DataFrame, asset: str, fast: int = 9, slow: int = 21, stop_loss: float = 0.0, take_profit: float = 0.0, atr_trail_mult: float = 0.0, atr_period: int = 14) -> BacktestResult:
     df = df.copy()
     df["fast_ema"] = df["Close"].ewm(span=fast, adjust=False).mean()
     df["slow_ema"] = df["Close"].ewm(span=slow, adjust=False).mean()
@@ -208,7 +243,7 @@ def ema_crossover(df: pd.DataFrame, asset: str, fast: int = 9, slow: int = 21, s
     df["signal"] = "hold"
     df.loc[cross_up, "signal"] = "buy"
     df.loc[cross_dn, "signal"] = "sell"
-    return _simulate(df, "signal", asset, "EMA Crossover", stop_loss, take_profit)
+    return _simulate(df, "signal", asset, "EMA Crossover", stop_loss, take_profit, atr_trail_mult, atr_period)
 
 
 def macd_crossover(
@@ -219,6 +254,8 @@ def macd_crossover(
     signal: int = 9,
     stop_loss: float = 0.0,
     take_profit: float = 0.0,
+    atr_trail_mult: float = 0.0,
+    atr_period: int = 14,
 ) -> BacktestResult:
     df = df.copy()
     ema_fast = df["Close"].ewm(span=fast, adjust=False).mean()
@@ -232,7 +269,7 @@ def macd_crossover(
     df.loc[cross_up, "signal"] = "buy"
     df.loc[cross_dn, "signal"] = "sell"
     df = df.dropna(subset=["macd", "macd_signal"]).copy()
-    return _simulate(df, "signal", asset, "MACD Crossover", stop_loss, take_profit)
+    return _simulate(df, "signal", asset, "MACD Crossover", stop_loss, take_profit, atr_trail_mult, atr_period)
 
 
 def compute_metrics(result: BacktestResult) -> dict:
