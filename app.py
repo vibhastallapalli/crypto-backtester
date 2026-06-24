@@ -414,11 +414,19 @@ with tab1:
         buys = sig_df[sig_df["signal"] == "buy"]
         sells = sig_df[sig_df["signal"] == "sell"]
 
+        vol_colors = [
+            ACCENT if df["Close"].iloc[i] >= df["Open"].iloc[i] else RED
+            for i in range(len(df))
+        ]
+
         fig_p = go.Figure()
-        fig_p.add_trace(go.Scatter(
-            x=df.index, y=df["Close"],
-            mode="lines", name="Price",
-            line=dict(color=ACCENT, width=1.5),
+        fig_p.add_trace(go.Candlestick(
+            x=df.index,
+            open=df["Open"], high=df["High"],
+            low=df["Low"], close=df["Close"],
+            name="Price",
+            increasing=dict(line=dict(color=ACCENT, width=1), fillcolor="rgba(0,212,170,0.55)"),
+            decreasing=dict(line=dict(color=RED, width=1), fillcolor="rgba(255,71,87,0.55)"),
         ))
 
         if cur_strat == "Stochastic Oscillator" and "stoch_k" in sig_df.columns:
@@ -501,24 +509,47 @@ with tab1:
 
         if not buys.empty:
             fig_p.add_trace(go.Scatter(
-                x=buys.index, y=buys["Close"] * 0.985,
+                x=buys.index, y=buys["Low"] * 0.985,
                 mode="markers", name="Buy",
                 marker=dict(symbol="triangle-up", size=11, color=ACCENT,
                             line=dict(color="white", width=1)),
             ))
         if not sells.empty:
             fig_p.add_trace(go.Scatter(
-                x=sells.index, y=sells["Close"] * 1.015,
+                x=sells.index, y=sells["High"] * 1.015,
                 mode="markers", name="Sell",
                 marker=dict(symbol="triangle-down", size=11, color=RED,
                             line=dict(color="white", width=1)),
             ))
 
-        apply_plotly_layout(
-            fig_p,
+        fig_p.add_trace(go.Bar(
+            x=df.index, y=df["Volume"],
+            name="Volume",
+            marker_color=vol_colors,
+            marker_line_width=0,
+            opacity=0.45,
+            yaxis="y2",
+        ))
+
+        fig_p.update_layout(
+            **{k: v for k, v in PLOTLY_BASE.items() if k not in ("xaxis", "yaxis", "margin")},
             title=f"{cur_asset} — {cur_strat}",
-            yaxis_title="Price (USD)",
-            height=420,
+            xaxis=dict(
+                gridcolor=BORDER, showgrid=True, zeroline=False,
+                rangeslider=dict(visible=False),
+            ),
+            yaxis=dict(
+                gridcolor=BORDER, showgrid=True, zeroline=False,
+                title="Price (USD)", domain=[0.28, 1.0],
+            ),
+            yaxis2=dict(
+                gridcolor=BORDER, showgrid=False, zeroline=False,
+                title="Volume", domain=[0.0, 0.24],
+                tickfont=dict(color=MUTED, size=10),
+                titlefont=dict(color=MUTED, size=11),
+            ),
+            height=540,
+            margin=dict(l=50, r=20, t=50, b=40),
         )
         st.plotly_chart(fig_p, use_container_width=True)
 
