@@ -250,8 +250,8 @@ def apply_plotly_layout(fig: go.Figure, **kwargs) -> go.Figure:
 
 
 # ── Tabs ───────────────────────────────────────────────────────────────────────
-tab1, tab2, tab3, tab4 = st.tabs(
-    ["📈  Strategy Backtester", "🗂  Portfolio Analyzer", "📋  Trade Log", "🔍  SQL Explorer"]
+tab1, tab2, tab3, tab4, tab5 = st.tabs(
+    ["📈  Strategy Backtester", "🗂  Portfolio Analyzer", "📋  Trade Log", "🔍  SQL Explorer", "⚡  Batch Backtest"]
 )
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1120,3 +1120,191 @@ CREATE TABLE portfolio (
 """,
             unsafe_allow_html=False,
         )
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 5 — Batch Backtest
+# ══════════════════════════════════════════════════════════════════════════════
+with tab5:
+    st.markdown(
+        f'<p style="color:{MUTED};font-size:0.82rem;margin-bottom:10px;">'
+        "Run one strategy across multiple assets and rank results by Sharpe ratio.</p>",
+        unsafe_allow_html=True,
+    )
+
+    bb_c1, bb_c2, bb_c3 = st.columns([2, 1, 1])
+    with bb_c1:
+        batch_assets = st.multiselect("Assets", ASSETS, default=ASSETS, key="batch_assets")
+    with bb_c2:
+        batch_strategy = st.selectbox("Strategy", STRATEGIES, key="batch_strategy")
+    with bb_c3:
+        batch_dates = st.date_input(
+            "Date Range",
+            value=(D_START, D_END),
+            min_value=datetime.date(2018, 1, 1),
+            max_value=datetime.date.today(),
+            key="batch_dates",
+        )
+
+    BATCH_DEFAULT_PARAMS = {
+        "MA Crossover": {"fast": 10, "slow": 30},
+        "EMA Crossover": {"fast": 9, "slow": 21},
+        "RSI Mean Reversion": {"period": 14, "oversold": 30, "overbought": 70},
+        "Stochastic Oscillator": {"k_period": 14, "d_period": 3, "oversold": 20, "overbought": 80},
+        "Volume Breakout": {"multiplier": 2.0, "lookback": 20},
+        "MACD Crossover": {"fast": 12, "slow": 26, "signal": 9},
+        "Bollinger Bands": {"period": 20, "std_dev": 2.0},
+    }
+    BATCH_FN_MAP = {
+        "MA Crossover": ma_crossover,
+        "EMA Crossover": ema_crossover,
+        "RSI Mean Reversion": rsi_mean_reversion,
+        "Stochastic Oscillator": stochastic_oscillator,
+        "Volume Breakout": volume_breakout,
+        "MACD Crossover": macd_crossover,
+        "Bollinger Bands": bollinger_bands,
+    }
+
+    run_batch_btn = st.button("▶  Run Batch", key="run_batch")
+
+    if run_batch_btn:
+        if len(batch_assets) < 1:
+            st.warning("Select at least one asset.")
+        elif not isinstance(batch_dates, (list, tuple)) or len(batch_dates) != 2:
+            st.warning("Select a valid date range.")
+        else:
+            bs, be = str(batch_dates[0]), str(batch_dates[1])
+            fn = BATCH_FN_MAP[batch_strategy]
+            bp = BATCH_DEFAULT_PARAMS[batch_strategy]
+            batch_rows = []
+            prog = st.progress(0, text="Running…")
+            for idx, a in enumerate(batch_assets):
+                prog.progress((idx + 1) / len(batch_assets), text=f"Backtesting {a}…")
+                try:
+                    adf = fetch_prices(a, bs, be)
+                    if adf.empty:
+                        continue
+                    res = fn(adf, a, **bp)
+                    m = compute_metrics(res)
+                    batch_rows.append({
+                        "Asset": a,
+                        "Total Return %": m["total_return"],
+                        "Sharpe": m["sharpe"],
+                        "Sortino": m["sortino"],
+                        "Win Rate %": m["win_rate"],
+                        "Max DD %": m["max_drawdown"],
+                        "# Trades": m["num_trades"],
+                        "Avg PnL %": m["avg_pnl_pct"],
+                        "Profit Factor": m["profit_factor"],
+                        "_equity": res.equity_curve,
+                    })
+                except Exception:
+                    pass
+            prog.empty()
+            st.session_state["batch_rows"] = batch_rows
+            st.session_state["batch_strategy_label"] = batch_strategy
+
+    if "batch_rows" in st.session_state and st.session_state["batch_rows"]:
+        batch_rows = st.session_state["batch_rows"]
+        batch_strat_label = st.session_state.get("batch_strategy_label", "")
+
+        display_cols = ["Asset", "Total Return %", "Sharpe", "Sortino", "Win Rate %",
+                        "Max DD %", "# Trades", "Avg PnL %", "Profit Factor"]
+        batch_df = pd.DataFrame([{c: r[c] for c in display_cols} for r in batch_rows])
+        batch_df = batch_df.sort_values("Sharpe", ascending=False).reset_index(drop=True)
+        batch_df.index = batch_df.index + 1
+
+        st.divider()
+        st.markdown(
+            f'<p style="color:{ACCENT};font-family:Space Mono,monospace;font-size:0.95rem;'
+            f'font-weight:700;margin-bottom:8px;">{batch_strat_label} — All Assets (default params)</p>',
+            unsafe_allow_html=True,
+        )
+
+        def _style_batch(val):
+            if not isinstance(val, (int, float)):
+                return ""
+            return f"color: {ACCENT}" if val > 0 else f"color: {RED}"
+
+        styled_batch = batch_df.style.applymap(
+            _style_batch,
+            subset=["Total Return %", "Sharpe", "Sortino", "Avg PnL %"],
+        ).format({
+            "Total Return %": "{:.2f}%",
+            "Sharpe": "{:.2f}",
+            "Sortino": "{:.2f}",
+            "Win Rate %": "{:.1f}%",
+            "Max DD %": "{:.2f}%",
+            "Avg PnL %": "{:.2f}%",
+        })
+        st.dataframe(styled_batch, use_container_width=True)
+
+        # Sharpe bar chart
+        sorted_names = batch_df["Asset"].tolist()
+        sorted_sharpe = batch_df["Sharpe"].tolist()
+        sharpe_colors = [ACCENT if s >= 0 else RED for s in sorted_sharpe]
+
+        fig_bs = go.Figure(go.Bar(
+            x=sorted_names, y=sorted_sharpe,
+            marker_color=sharpe_colors,
+            marker_line=dict(color=BORDER, width=0.5),
+            text=[f"{s:.2f}" for s in sorted_sharpe],
+            textposition="outside",
+            textfont=dict(color=TEXT),
+            name="Sharpe",
+        ))
+        fig_bs.add_hline(y=1.0, line_dash="dash", line_color=YELLOW,
+                         annotation_text="Sharpe = 1", annotation_font_color=YELLOW,
+                         annotation_position="top right")
+        fig_bs.add_hline(y=0, line_dash="dot", line_color=MUTED, opacity=0.5)
+        apply_plotly_layout(
+            fig_bs,
+            title=f"Sharpe Ratio by Asset — {batch_strat_label}",
+            yaxis_title="Sharpe Ratio",
+            height=320,
+            margin=dict(l=50, r=20, t=50, b=40),
+        )
+        st.plotly_chart(fig_bs, use_container_width=True)
+
+        # Total return bar chart
+        ret_order = batch_df.sort_values("Total Return %", ascending=False)
+        ret_colors = [ACCENT if v >= 0 else RED for v in ret_order["Total Return %"]]
+        fig_br = go.Figure(go.Bar(
+            x=ret_order["Asset"].tolist(),
+            y=ret_order["Total Return %"].tolist(),
+            marker_color=ret_colors,
+            marker_line=dict(color=BORDER, width=0.5),
+            text=[f"{v:.1f}%" for v in ret_order["Total Return %"]],
+            textposition="outside",
+            textfont=dict(color=TEXT),
+            name="Total Return",
+        ))
+        fig_br.add_hline(y=0, line_dash="dot", line_color=MUTED, opacity=0.5)
+        apply_plotly_layout(
+            fig_br,
+            title=f"Total Return % by Asset — {batch_strat_label}",
+            yaxis_title="Total Return %",
+            height=320,
+            margin=dict(l=50, r=20, t=50, b=40),
+        )
+        st.plotly_chart(fig_br, use_container_width=True)
+
+        # Overlaid equity curves
+        equity_rows = {r["Asset"]: r["_equity"] for r in batch_rows}
+        if equity_rows:
+            palette = [ACCENT, YELLOW, "#ff6b81", "#a29bfe", "#fd79a8", "#55efc4",
+                       "#fdcb6e", "#e17055", "#74b9ff", "#00cec9", "#6c5ce7", "#fab1a0", "#dfe6e9"]
+            fig_eq_b = go.Figure()
+            for (aname, eq), color in zip(equity_rows.items(), palette):
+                fig_eq_b.add_trace(go.Scatter(
+                    x=eq.index, y=eq,
+                    mode="lines", name=aname,
+                    line=dict(color=color, width=1.6),
+                ))
+            fig_eq_b.add_hline(y=1.0, line_dash="dot", line_color=BORDER, opacity=0.5)
+            apply_plotly_layout(
+                fig_eq_b,
+                title=f"Equity Curves — {batch_strat_label} (all assets)",
+                yaxis_title="Portfolio Value (normalized)",
+                height=380,
+            )
+            st.plotly_chart(fig_eq_b, use_container_width=True)
