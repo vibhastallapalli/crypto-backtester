@@ -386,6 +386,8 @@ with tab1:
             bt_strategy=strategy,
             bt_params=params,
         )
+        for _k in ("mc_curves", "mc_pnl"):
+            st.session_state.pop(_k, None)
 
     # ── Results ────────────────────────────────────────────────────────────────
     if "bt_result" in st.session_state:
@@ -725,6 +727,75 @@ with tab1:
                 margin=dict(l=50, r=20, t=45, b=35),
             )
             st.plotly_chart(fig_hist, use_container_width=True)
+
+        # ── Monte Carlo Simulation ─────────────────────────────────────────────
+        if result.trades and len(result.trades) >= 2:
+            mc_btn = st.button("▶  Run Monte Carlo (1000 sims)", key="mc_btn")
+            if mc_btn:
+                mc_pnl = np.array([t["pnl_pct"] / 100 for t in result.trades])
+                mc_rng = np.random.default_rng(42)
+                mc_curves = np.zeros((1000, len(mc_pnl) + 1))
+                mc_curves[:, 0] = 1.0
+                for mc_i in range(1000):
+                    mc_shuf = mc_rng.permutation(mc_pnl)
+                    mc_curves[mc_i, 1:] = np.cumprod(1 + mc_shuf)
+                st.session_state["mc_curves"] = mc_curves
+                st.session_state["mc_pnl"] = mc_pnl
+            if "mc_curves" in st.session_state and "mc_pnl" in st.session_state:
+                mc_cv = st.session_state["mc_curves"]
+                mc_pa = st.session_state["mc_pnl"]
+                mc_x = list(range(mc_cv.shape[1]))
+                mc_p5 = np.percentile(mc_cv, 5, axis=0)
+                mc_p95 = np.percentile(mc_cv, 95, axis=0)
+                mc_med = np.percentile(mc_cv, 50, axis=0)
+                mc_act = np.concatenate([[1.0], np.cumprod(1 + mc_pa)])
+                fig_mc = go.Figure()
+                for mc_i in range(0, len(mc_cv), 5):
+                    fig_mc.add_trace(go.Scatter(
+                        x=mc_x, y=mc_cv[mc_i].tolist(),
+                        mode="lines",
+                        line=dict(color="rgba(0,212,170,0.04)", width=1),
+                        showlegend=False, hoverinfo="skip",
+                    ))
+                fig_mc.add_trace(go.Scatter(
+                    x=mc_x + mc_x[::-1],
+                    y=mc_p95.tolist() + mc_p5.tolist()[::-1],
+                    fill="toself",
+                    fillcolor="rgba(0,212,170,0.12)",
+                    line=dict(color="rgba(0,0,0,0)"),
+                    name="5th–95th %ile",
+                ))
+                fig_mc.add_trace(go.Scatter(
+                    x=mc_x, y=mc_med.tolist(),
+                    mode="lines", name="Median sim",
+                    line=dict(color=YELLOW, width=1.5, dash="dash"),
+                ))
+                fig_mc.add_trace(go.Scatter(
+                    x=mc_x, y=mc_act.tolist(),
+                    mode="lines", name="Actual sequence",
+                    line=dict(color=ACCENT, width=2.5),
+                ))
+                fig_mc.add_hline(y=1.0, line_dash="dot", line_color=BORDER, opacity=0.6)
+                apply_plotly_layout(
+                    fig_mc,
+                    title="Monte Carlo — 1000 Trade-Sequence Shuffles",
+                    xaxis_title="Trade #",
+                    yaxis_title="Portfolio Value (normalized)",
+                    height=400,
+                    margin=dict(l=50, r=20, t=50, b=40),
+                )
+                st.plotly_chart(fig_mc, use_container_width=True)
+                mc_finals = mc_cv[:, -1]
+                mc_p50v = float(np.percentile(mc_finals, 50))
+                mc_p5v = float(np.percentile(mc_finals, 5))
+                mc_p95v = float(np.percentile(mc_finals, 95))
+                mc_col1, mc_col2, mc_col3 = st.columns(3)
+                metric_card(mc_col1, "Median Final Equity", round(mc_p50v, 3),
+                            color=_color_for(mc_p50v - 1))
+                metric_card(mc_col2, "P5 Final Equity", round(mc_p5v, 3),
+                            color=_color_for(mc_p5v - 1))
+                metric_card(mc_col3, "P95 Final Equity", round(mc_p95v, 3),
+                            color=_color_for(mc_p95v - 1))
 
         # ── Strategy Comparison ────────────────────────────────────────────────
         st.markdown("<div style='margin-top:4px'></div>", unsafe_allow_html=True)
