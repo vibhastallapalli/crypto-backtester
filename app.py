@@ -13,6 +13,7 @@ from strategies import (
     bollinger_bands,
     compute_metrics,
     ema_crossover,
+    keltner_channel,
     ma_crossover,
     macd_crossover,
     rsi_mean_reversion,
@@ -172,7 +173,7 @@ st.markdown(
 
 # ── Constants ──────────────────────────────────────────────────────────────────
 ASSETS = ["BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "AVAX", "DOGE", "LTC", "DOT", "LINK", "MATIC", "UNI"]
-STRATEGIES = ["MA Crossover", "EMA Crossover", "RSI Mean Reversion", "Stochastic Oscillator", "Volume Breakout", "MACD Crossover", "Bollinger Bands", "Z-Score MR"]
+STRATEGIES = ["MA Crossover", "EMA Crossover", "RSI Mean Reversion", "Stochastic Oscillator", "Volume Breakout", "MACD Crossover", "Bollinger Bands", "Z-Score MR", "Keltner Channel"]
 D_START = datetime.date(2022, 1, 1)
 D_END = datetime.date(2024, 12, 31)
 
@@ -317,12 +318,17 @@ with tab1:
         bb_period = p1.slider("Period", 5, 50, 20)
         bb_std = p2.slider("Std Dev", 1.0, 4.0, 2.0, 0.1)
         params = {"period": bb_period, "std_dev": bb_std}
-    else:  # Z-Score MR
+    elif strategy == "Z-Score MR":
         p1, p2, p3 = st.columns([1, 1, 2])
         zs_window = p1.slider("Window", 5, 100, 20)
         zs_threshold = p2.slider("Threshold", 0.5, 4.0, 2.0, 0.1,
                                   help="Buy when Z-score < −threshold; sell when Z-score crosses 0.")
         params = {"window": zs_window, "threshold": zs_threshold}
+    else:  # Keltner Channel
+        p1, p2, p3 = st.columns([1, 1, 2])
+        kc_ema_period = p1.slider("EMA Period", 5, 50, 20)
+        kc_atr_mult = p2.slider("ATR Mult", 0.5, 4.0, 1.5, 0.1)
+        params = {"ema_period": kc_ema_period, "atr_mult": kc_atr_mult}
 
     st.markdown(
         f'<p style="color:{MUTED};font-size:0.8rem;margin:6px 0 2px;">Risk Controls</p>',
@@ -372,8 +378,10 @@ with tab1:
                 result = macd_crossover(df, asset, **params, **sl_tp)
             elif strategy == "Bollinger Bands":
                 result = bollinger_bands(df, asset, **params, **sl_tp)
-            else:
+            elif strategy == "Z-Score MR":
                 result = zscore_mean_reversion(df, asset, **params, **sl_tp)
+            else:
+                result = keltner_channel(df, asset, **params, **sl_tp)
 
         if result.trades:
             save_trades(result.trades)
@@ -532,6 +540,23 @@ with tab1:
                 mode="lines", name="Z-Score (scaled)",
                 line=dict(color="#a29bfe", width=1, dash="dot"),
                 opacity=0.65,
+            ))
+        elif cur_strat == "Keltner Channel" and "kc_upper" in sig_df.columns:
+            fig_p.add_trace(go.Scatter(
+                x=sig_df.index, y=sig_df["kc_upper"],
+                mode="lines", name="KC Upper",
+                line=dict(color=YELLOW, width=1, dash="dot"), opacity=0.7,
+            ))
+            fig_p.add_trace(go.Scatter(
+                x=sig_df.index, y=sig_df["kc_mid"],
+                mode="lines", name="KC Mid (EMA)",
+                line=dict(color=MUTED, width=1, dash="dot"), opacity=0.5,
+            ))
+            fig_p.add_trace(go.Scatter(
+                x=sig_df.index, y=sig_df["kc_lower"],
+                mode="lines", name="KC Lower",
+                line=dict(color="#ff6b81", width=1, dash="dot"), opacity=0.7,
+                fill="tonexty", fillcolor="rgba(255,107,129,0.04)",
             ))
 
         if not buys.empty:
@@ -834,6 +859,7 @@ with tab1:
                     ("MACD Crossover", macd_crossover, {"fast": 12, "slow": 26, "signal": 9}),
                     ("Bollinger Bands", bollinger_bands, {"period": 20, "std_dev": 2.0}),
                     ("Z-Score MR", zscore_mean_reversion, {"window": 20, "threshold": 2.0}),
+                    ("Keltner Channel", keltner_channel, {"ema_period": 20, "atr_mult": 1.5}),
                 ]:
                     r = strat_fn(df, cur_asset, **strat_params)
                     cmp_results[strat_name] = (r, compute_metrics(r))
@@ -1246,6 +1272,7 @@ with tab5:
         "MACD Crossover": {"fast": 12, "slow": 26, "signal": 9},
         "Bollinger Bands": {"period": 20, "std_dev": 2.0},
         "Z-Score MR": {"window": 20, "threshold": 2.0},
+        "Keltner Channel": {"ema_period": 20, "atr_mult": 1.5},
     }
     BATCH_FN_MAP = {
         "MA Crossover": ma_crossover,
@@ -1256,6 +1283,7 @@ with tab5:
         "MACD Crossover": macd_crossover,
         "Bollinger Bands": bollinger_bands,
         "Z-Score MR": zscore_mean_reversion,
+        "Keltner Channel": keltner_channel,
     }
 
     run_batch_btn = st.button("▶  Run Batch", key="run_batch")

@@ -298,6 +298,31 @@ def zscore_mean_reversion(
     return _simulate(df, "signal", asset, "Z-Score MR", stop_loss, take_profit, atr_trail_mult, atr_period)
 
 
+def keltner_channel(
+    df: pd.DataFrame,
+    asset: str,
+    ema_period: int = 20,
+    atr_mult: float = 1.5,
+    stop_loss: float = 0.0,
+    take_profit: float = 0.0,
+    atr_trail_mult: float = 0.0,
+    atr_period: int = 14,
+) -> BacktestResult:
+    df = df.copy()
+    df["kc_mid"] = df["Close"].ewm(span=ema_period, adjust=False).mean()
+    kc_atr = pd.Series(_calc_atr(df, ema_period), index=df.index)
+    kc_atr.iloc[:ema_period - 1] = np.nan
+    df["kc_upper"] = df["kc_mid"] + atr_mult * kc_atr
+    df["kc_lower"] = df["kc_mid"] - atr_mult * kc_atr
+    df = df.dropna(subset=["kc_mid", "kc_upper", "kc_lower"]).copy()
+    cross_lower = (df["Close"] > df["kc_lower"]) & (df["Close"].shift(1) <= df["kc_lower"].shift(1))
+    cross_upper = (df["Close"] > df["kc_upper"]) & (df["Close"].shift(1) <= df["kc_upper"].shift(1))
+    df["signal"] = "hold"
+    df.loc[cross_lower, "signal"] = "buy"
+    df.loc[cross_upper, "signal"] = "sell"
+    return _simulate(df, "signal", asset, "Keltner Channel", stop_loss, take_profit, atr_trail_mult, atr_period)
+
+
 def compute_metrics(result: BacktestResult) -> dict:
     equity = result.equity_curve
     trades = result.trades
