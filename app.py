@@ -394,7 +394,13 @@ with tab1:
             bt_strategy=strategy,
             bt_params=params,
         )
-        for _k in ("mc_curves", "mc_pnl"):
+        st.session_state["bt_risk"] = {
+            "stop_loss": stop_loss_pct,
+            "take_profit": take_profit_pct,
+            "atr_trail_mult": atr_trail_mult,
+            "atr_period": atr_period,
+        }
+        for _k in ("mc_curves", "mc_pnl", "wf_rows"):
             st.session_state.pop(_k, None)
 
     # ── Results ────────────────────────────────────────────────────────────────
@@ -821,6 +827,96 @@ with tab1:
                             color=_color_for(mc_p5v - 1))
                 metric_card(mc_col3, "P95 Final Equity", round(mc_p95v, 3),
                             color=_color_for(mc_p95v - 1))
+
+        # ── Walk-Forward Analysis ──────────────────────────────────────────────
+        wf_fn_map = {
+            "MA Crossover": ma_crossover,
+            "EMA Crossover": ema_crossover,
+            "RSI Mean Reversion": rsi_mean_reversion,
+            "Stochastic Oscillator": stochastic_oscillator,
+            "Volume Breakout": volume_breakout,
+            "MACD Crossover": macd_crossover,
+            "Bollinger Bands": bollinger_bands,
+            "Z-Score MR": zscore_mean_reversion,
+            "Keltner Channel": keltner_channel,
+        }
+        wf_btn = st.button("▶  Walk-Forward Analysis (5 windows)", key="wf_btn")
+        if wf_btn:
+            wf_fn = wf_fn_map.get(cur_strat)
+            if wf_fn:
+                wf_risk = st.session_state.get("bt_risk", {})
+                n_wf = len(df)
+                chunk = n_wf // 5
+                wf_rows = []
+                for wfi in range(5):
+                    s_i = wfi * chunk
+                    e_i = (wfi + 1) * chunk if wfi < 4 else n_wf
+                    wdf = df.iloc[s_i:e_i]
+                    if len(wdf) < 20:
+                        continue
+                    try:
+                        wr = wf_fn(wdf, cur_asset, **cur_params, **wf_risk)
+                        wm = compute_metrics(wr)
+                        wf_rows.append({
+                            "Window": f"W{wfi+1} ({str(wdf.index[0].date())}–{str(wdf.index[-1].date())})",
+                            "Start": str(wdf.index[0].date()),
+                            "End": str(wdf.index[-1].date()),
+                            "Return %": wm["total_return"],
+                            "Sharpe": wm["sharpe"],
+                            "# Trades": wm["num_trades"],
+                        })
+                    except Exception:
+                        pass
+                st.session_state["wf_rows"] = wf_rows
+
+        if "wf_rows" in st.session_state and st.session_state["wf_rows"]:
+            wf_rows = st.session_state["wf_rows"]
+            wf_labels = [r["Window"] for r in wf_rows]
+            wf_sharpe = [r["Sharpe"] for r in wf_rows]
+            wf_colors = [ACCENT if s >= 0 else RED for s in wf_sharpe]
+
+            fig_wf = go.Figure(go.Bar(
+                x=wf_labels, y=wf_sharpe,
+                marker_color=wf_colors,
+                marker_line=dict(color=BORDER, width=0.5),
+                text=[f"{s:.2f}" for s in wf_sharpe],
+                textposition="outside",
+                textfont=dict(color=TEXT),
+                name="Sharpe",
+            ))
+            fig_wf.add_hline(y=0, line_dash="dot", line_color=MUTED, opacity=0.5)
+            fig_wf.add_hline(y=1.0, line_dash="dash", line_color=YELLOW, opacity=0.6,
+                             annotation_text="Sharpe = 1", annotation_font_color=YELLOW,
+                             annotation_position="top right")
+            apply_plotly_layout(
+                fig_wf,
+                title=f"Walk-Forward Sharpe — {cur_strat} on {cur_asset}",
+                yaxis_title="Sharpe Ratio",
+                height=320,
+                margin=dict(l=50, r=20, t=50, b=70),
+            )
+            st.plotly_chart(fig_wf, use_container_width=True)
+
+            wf_display = pd.DataFrame([{
+                "Window": r["Window"],
+                "Start": r["Start"],
+                "End": r["End"],
+                "Return %": r["Return %"],
+                "Sharpe": r["Sharpe"],
+                "# Trades": r["# Trades"],
+            } for r in wf_rows])
+
+            def _wf_color(val):
+                if not isinstance(val, (int, float)):
+                    return ""
+                return f"color: {ACCENT}" if val > 0 else f"color: {RED}"
+
+            st.dataframe(
+                wf_display.style
+                .applymap(_wf_color, subset=["Return %", "Sharpe"])
+                .format({"Return %": "{:.2f}%", "Sharpe": "{:.2f}"}),
+                use_container_width=True,
+            )
 
         # ── Strategy Comparison ────────────────────────────────────────────────
         st.markdown("<div style='margin-top:4px'></div>", unsafe_allow_html=True)
