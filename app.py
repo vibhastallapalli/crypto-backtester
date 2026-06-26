@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+from scipy.optimize import minimize as scipy_minimize
 
 from database import get_trades, init_db, run_raw_sql, save_trades
 from data_fetcher import fetch_prices
@@ -1037,6 +1038,8 @@ with tab2:
                 stats_df = risk_return_stats(pa_assets, s, e)
                 pa_prices = {a: fetch_prices(a, s, e)["Close"] for a in pa_assets}
             st.session_state.update(pa_corr=corr_df, pa_stats=stats_df, pa_prices=pa_prices)
+            for _k in ("opt_weights", "opt_metrics"):
+                st.session_state.pop(_k, None)
 
     corr_df: pd.DataFrame = st.session_state.get("pa_corr")
     stats_df: pd.DataFrame = st.session_state.get("pa_stats")
@@ -1150,6 +1153,69 @@ with tab2:
                 height=380,
             )
             st.plotly_chart(fig_norm, use_container_width=True)
+
+            # ── Portfolio Optimizer ────────────────────────────────────────────
+            st.divider()
+            st.markdown(
+                f'<p style="color:{ACCENT};font-family:Space Mono,monospace;font-size:0.95rem;'
+                f'font-weight:700;margin-bottom:8px;">Portfolio Optimizer</p>',
+                unsafe_allow_html=True,
+            )
+            opt_btn = st.button("⚡  Optimize Weights (Max Sharpe)", key="opt_btn")
+            if opt_btn:
+                price_df = pd.DataFrame({a: s for a, s in pa_prices.items()}).dropna()
+                rets = price_df.pct_change().dropna()
+                mean_rets = rets.mean() * 252
+                cov_mat = rets.cov() * 252
+                opt_assets = list(pa_prices.keys())
+                n_opt = len(opt_assets)
+
+                def _neg_sharpe(w):
+                    pr = float(np.dot(w, mean_rets))
+                    pv = float(np.sqrt(np.dot(w.T, np.dot(cov_mat, w))))
+                    return -pr / pv if pv > 0 else 0.0
+
+                opt_result = scipy_minimize(
+                    _neg_sharpe,
+                    x0=np.ones(n_opt) / n_opt,
+                    method="SLSQP",
+                    bounds=[(0.0, 1.0)] * n_opt,
+                    constraints=[{"type": "eq", "fun": lambda w: np.sum(w) - 1}],
+                )
+                if opt_result.success:
+                    opt_w = opt_result.x
+                    st.session_state["opt_weights"] = dict(zip(opt_assets, opt_w.tolist()))
+                    st.session_state["opt_metrics"] = {
+                        "return": round(float(np.dot(opt_w, mean_rets)) * 100, 2),
+                        "vol": round(float(np.sqrt(np.dot(opt_w.T, np.dot(cov_mat, opt_w)))) * 100, 2),
+                        "sharpe": round(float(-opt_result.fun), 2),
+                    }
+                else:
+                    st.warning("Optimizer did not converge — try different assets or date range.")
+
+            if "opt_weights" in st.session_state and "opt_metrics" in st.session_state:
+                opt_w = st.session_state["opt_weights"]
+                opt_m = st.session_state["opt_metrics"]
+                sig_w = {a: w for a, w in opt_w.items() if w > 0.005}
+
+                pie_palette = [ACCENT, YELLOW, "#ff6b81", "#a29bfe", "#fd79a8", "#55efc4", "#fdcb6e", "#e17055"]
+                fig_pie = go.Figure(go.Pie(
+                    labels=list(sig_w.keys()),
+                    values=[round(w * 100, 2) for w in sig_w.values()],
+                    marker=dict(colors=pie_palette[:len(sig_w)], line=dict(color=BG, width=2)),
+                    textinfo="label+percent",
+                    textfont=dict(color=TEXT, family="Space Mono, monospace", size=12),
+                    hole=0.38,
+                ))
+                apply_plotly_layout(fig_pie, title="Optimal Portfolio Weights (Max Sharpe)", height=360)
+                st.plotly_chart(fig_pie, use_container_width=True)
+
+                oc1, oc2, oc3 = st.columns(3)
+                metric_card(oc1, "Expected Annual Return", f"{opt_m['return']}%",
+                            color=_color_for(opt_m["return"]))
+                metric_card(oc2, "Annual Volatility", f"{opt_m['vol']}%", color="neutral")
+                metric_card(oc3, "Portfolio Sharpe", opt_m["sharpe"],
+                            color=_color_for(opt_m["sharpe"]))
 
     elif analyze_btn is False:
         st.info("Select assets and a date range, then click Analyze Portfolio.")
