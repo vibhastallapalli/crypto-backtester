@@ -401,7 +401,7 @@ with tab1:
             "atr_trail_mult": atr_trail_mult,
             "atr_period": atr_period,
         }
-        for _k in ("mc_curves", "mc_pnl", "wf_rows"):
+        for _k in ("mc_curves", "mc_pnl", "wf_rows", "hm_data"):
             st.session_state.pop(_k, None)
 
     # ── Results ────────────────────────────────────────────────────────────────
@@ -918,6 +918,161 @@ with tab1:
                 .format({"Return %": "{:.2f}%", "Sharpe": "{:.2f}"}),
                 use_container_width=True,
             )
+
+        # ── Parameter Heatmap ─────────────────────────────────────────────────
+        HM_PARAM_SPECS = {
+            "MA Crossover": {
+                "fast": {"min": 2, "max": 50, "type": int},
+                "slow": {"min": 10, "max": 200, "type": int},
+            },
+            "EMA Crossover": {
+                "fast": {"min": 2, "max": 50, "type": int},
+                "slow": {"min": 5, "max": 200, "type": int},
+            },
+            "RSI Mean Reversion": {
+                "period": {"min": 5, "max": 50, "type": int},
+                "oversold": {"min": 10, "max": 45, "type": int},
+                "overbought": {"min": 55, "max": 90, "type": int},
+            },
+            "Stochastic Oscillator": {
+                "k_period": {"min": 5, "max": 50, "type": int},
+                "d_period": {"min": 1, "max": 10, "type": int},
+                "oversold": {"min": 5, "max": 40, "type": int},
+                "overbought": {"min": 60, "max": 95, "type": int},
+            },
+            "Volume Breakout": {
+                "multiplier": {"min": 1.0, "max": 5.0, "type": float},
+                "lookback": {"min": 5, "max": 60, "type": int},
+            },
+            "MACD Crossover": {
+                "fast": {"min": 5, "max": 50, "type": int},
+                "slow": {"min": 10, "max": 100, "type": int},
+                "signal": {"min": 3, "max": 30, "type": int},
+            },
+            "Bollinger Bands": {
+                "period": {"min": 5, "max": 50, "type": int},
+                "std_dev": {"min": 1.0, "max": 4.0, "type": float},
+            },
+            "Z-Score MR": {
+                "window": {"min": 5, "max": 100, "type": int},
+                "threshold": {"min": 0.5, "max": 4.0, "type": float},
+            },
+            "Keltner Channel": {
+                "ema_period": {"min": 5, "max": 50, "type": int},
+                "atr_mult": {"min": 0.5, "max": 4.0, "type": float},
+            },
+        }
+        with st.expander("🔬  Parameter Heatmap"):
+            hm_spec = HM_PARAM_SPECS.get(cur_strat, {})
+            hm_keys = list(hm_spec.keys())
+            hm_fn = wf_fn_map.get(cur_strat)
+            hm_risk = st.session_state.get("bt_risk", {})
+
+            if len(hm_keys) < 2:
+                if hm_keys and hm_fn:
+                    pk = hm_keys[0]
+                    spec0 = hm_spec[pk]
+                    if st.button("▶  Run Line Scan", key="hm_btn_line"):
+                        hm_vals = np.linspace(spec0["min"], spec0["max"], 20)
+                        if spec0["type"] == int:
+                            hm_vals = np.unique(np.round(hm_vals).astype(int)).astype(float)
+                        sharpes_line = []
+                        for hv in hm_vals:
+                            tp = dict(cur_params)
+                            tp[pk] = spec0["type"](hv)
+                            try:
+                                sharpes_line.append(compute_metrics(hm_fn(df, cur_asset, **tp, **hm_risk))["sharpe"])
+                            except Exception:
+                                sharpes_line.append(float("nan"))
+                        st.session_state["hm_data"] = {
+                            "type": "line", "x": hm_vals.tolist(), "y": sharpes_line, "xlabel": pk,
+                        }
+            else:
+                hm_c1, hm_c2 = st.columns(2)
+                hm_p1 = hm_c1.selectbox("X-axis param", hm_keys, key="hm_p1")
+                hm_p2 = hm_c2.selectbox("Y-axis param", [k for k in hm_keys if k != hm_p1], key="hm_p2")
+                if st.button("▶  Run Heatmap (10 × 10 grid)", key="hm_btn") and hm_fn:
+                    sp1, sp2 = hm_spec[hm_p1], hm_spec[hm_p2]
+                    x_raw = np.linspace(sp1["min"], sp1["max"], 10)
+                    y_raw = np.linspace(sp2["min"], sp2["max"], 10)
+                    if sp1["type"] == int:
+                        x_raw = np.unique(np.round(x_raw).astype(int)).astype(float)
+                    if sp2["type"] == int:
+                        y_raw = np.unique(np.round(y_raw).astype(int)).astype(float)
+                    x_labels = [str(int(v)) if sp1["type"] == int else f"{v:.2f}" for v in x_raw]
+                    y_labels = [str(int(v)) if sp2["type"] == int else f"{v:.2f}" for v in y_raw]
+                    hm_grid = np.full((len(y_raw), len(x_raw)), np.nan)
+                    total_hm = len(x_raw) * len(y_raw)
+                    prog_hm = st.progress(0, text="Running grid…")
+                    cell_hm = 0
+                    for yi, yv in enumerate(y_raw):
+                        for xi, xv in enumerate(x_raw):
+                            tp = dict(cur_params)
+                            tp[hm_p1] = sp1["type"](xv)
+                            tp[hm_p2] = sp2["type"](yv)
+                            try:
+                                hm_grid[yi, xi] = compute_metrics(
+                                    hm_fn(df, cur_asset, **tp, **hm_risk)
+                                )["sharpe"]
+                            except Exception:
+                                pass
+                            cell_hm += 1
+                            prog_hm.progress(cell_hm / total_hm,
+                                             text=f"Running grid… {cell_hm}/{total_hm}")
+                    prog_hm.empty()
+                    st.session_state["hm_data"] = {
+                        "type": "heatmap",
+                        "z": hm_grid.tolist(),
+                        "x": x_labels, "y": y_labels,
+                        "xlabel": hm_p1, "ylabel": hm_p2,
+                    }
+
+            if "hm_data" in st.session_state:
+                hm_d = st.session_state["hm_data"]
+                if hm_d["type"] == "heatmap":
+                    hm_text = [
+                        [f"{v:.2f}" if v == v else "—" for v in row]
+                        for row in hm_d["z"]
+                    ]
+                    fig_hm = go.Figure(go.Heatmap(
+                        z=hm_d["z"],
+                        x=hm_d["x"],
+                        y=hm_d["y"],
+                        colorscale=[[0, RED], [0.5, BG], [1, ACCENT]],
+                        zmid=0,
+                        text=hm_text,
+                        texttemplate="%{text}",
+                        textfont=dict(size=10, color=TEXT),
+                        showscale=True,
+                        colorbar=dict(tickfont=dict(color=TEXT), outlinecolor=BORDER, title="Sharpe"),
+                    ))
+                    apply_plotly_layout(
+                        fig_hm,
+                        title=f"Sharpe Heatmap — {cur_strat} on {cur_asset}",
+                        xaxis_title=hm_d["xlabel"],
+                        yaxis_title=hm_d["ylabel"],
+                        height=460,
+                        margin=dict(l=70, r=20, t=55, b=50),
+                    )
+                    st.plotly_chart(fig_hm, use_container_width=True)
+                else:
+                    fig_hm_line = go.Figure(go.Scatter(
+                        x=hm_d["x"], y=hm_d["y"],
+                        mode="lines+markers",
+                        line=dict(color=ACCENT, width=2),
+                        marker=dict(size=7, color=ACCENT),
+                        name="Sharpe",
+                    ))
+                    fig_hm_line.add_hline(y=0, line_dash="dot", line_color=MUTED, opacity=0.5)
+                    apply_plotly_layout(
+                        fig_hm_line,
+                        title=f"Sharpe vs {hm_d['xlabel']} — {cur_strat} on {cur_asset}",
+                        xaxis_title=hm_d["xlabel"],
+                        yaxis_title="Sharpe",
+                        height=300,
+                        margin=dict(l=50, r=20, t=50, b=40),
+                    )
+                    st.plotly_chart(fig_hm_line, use_container_width=True)
 
         # ── Strategy Comparison ────────────────────────────────────────────────
         st.markdown("<div style='margin-top:4px'></div>", unsafe_allow_html=True)
