@@ -1345,6 +1345,12 @@ with tab2:
                         "vol": round(float(np.sqrt(np.dot(opt_w.T, np.dot(cov_mat, opt_w)))) * 100, 2),
                         "sharpe": round(float(-opt_result.fun), 2),
                     }
+                    st.session_state["opt_frontier_data"] = {
+                        "mean_rets": mean_rets.tolist(),
+                        "cov_mat": cov_mat.values.tolist(),
+                        "assets": opt_assets,
+                        "opt_w": opt_w.tolist(),
+                    }
                 else:
                     st.warning("Optimizer did not converge — try different assets or date range.")
 
@@ -1371,6 +1377,68 @@ with tab2:
                 metric_card(oc2, "Annual Volatility", f"{opt_m['vol']}%", color="neutral")
                 metric_card(oc3, "Portfolio Sharpe", opt_m["sharpe"],
                             color=_color_for(opt_m["sharpe"]))
+
+                # ── Efficient Frontier ─────────────────────────────────────────
+                if "opt_frontier_data" in st.session_state:
+                    ef_btn = st.button("📈  Show Efficient Frontier (3000 portfolios)", key="ef_btn")
+                    if ef_btn:
+                        fd = st.session_state["opt_frontier_data"]
+                        ef_mr = np.array(fd["mean_rets"])
+                        ef_cov = np.array(fd["cov_mat"])
+                        ef_assets = fd["assets"]
+                        ef_n = len(ef_assets)
+                        ef_rng = np.random.default_rng(7)
+                        ef_vols, ef_rets, ef_sharpes = [], [], []
+                        for _ in range(3000):
+                            w = ef_rng.random(ef_n)
+                            w /= w.sum()
+                            r = float(np.dot(w, ef_mr))
+                            v = float(np.sqrt(np.dot(w.T, np.dot(ef_cov, w))))
+                            ef_vols.append(v * 100)
+                            ef_rets.append(r * 100)
+                            ef_sharpes.append(r / v if v > 0 else 0)
+                        st.session_state["ef_plot"] = {
+                            "vols": ef_vols, "rets": ef_rets, "sharpes": ef_sharpes,
+                            "opt_vol": opt_m["vol"], "opt_ret": opt_m["return"],
+                            "opt_sharpe": opt_m["sharpe"],
+                        }
+
+                    if "ef_plot" in st.session_state:
+                        efp = st.session_state["ef_plot"]
+                        sharpe_min = min(efp["sharpes"])
+                        sharpe_max = max(efp["sharpes"])
+                        sharpe_norm = [
+                            (s - sharpe_min) / (sharpe_max - sharpe_min + 1e-9)
+                            for s in efp["sharpes"]
+                        ]
+                        point_colors = [
+                            f"rgba({int(255*(1-t))},{int(212*t)},{int(170*t)},0.65)"
+                            for t in sharpe_norm
+                        ]
+                        fig_ef = go.Figure()
+                        fig_ef.add_trace(go.Scatter(
+                            x=efp["vols"], y=efp["rets"],
+                            mode="markers",
+                            marker=dict(size=4, color=point_colors, line=dict(width=0)),
+                            name="Random portfolios",
+                            hovertemplate="Vol: %{x:.1f}%<br>Return: %{y:.1f}%<extra></extra>",
+                        ))
+                        fig_ef.add_trace(go.Scatter(
+                            x=[efp["opt_vol"]], y=[efp["opt_ret"]],
+                            mode="markers",
+                            marker=dict(size=18, symbol="star", color=YELLOW,
+                                        line=dict(color="white", width=1.5)),
+                            name=f"Max Sharpe ({efp['opt_sharpe']:.2f})",
+                            hovertemplate=f"Max Sharpe Portfolio<br>Vol: {efp['opt_vol']:.1f}%<br>Return: {efp['opt_ret']:.1f}%<extra></extra>",
+                        ))
+                        apply_plotly_layout(
+                            fig_ef,
+                            title="Efficient Frontier — 3000 Random Portfolios (color = Sharpe)",
+                            xaxis_title="Annual Volatility (%)",
+                            yaxis_title="Annual Return (%)",
+                            height=420,
+                        )
+                        st.plotly_chart(fig_ef, use_container_width=True)
 
     elif analyze_btn is False:
         st.info("Select assets and a date range, then click Analyze Portfolio.")
