@@ -409,7 +409,7 @@ with tab1:
             "atr_trail_mult": atr_trail_mult,
             "atr_period": atr_period,
         }
-        for _k in ("mc_curves", "mc_pnl", "wf_rows", "hm_data"):
+        for _k in ("mc_curves", "mc_pnl", "wf_rows", "hm_data", "adv_beta"):
             st.session_state.pop(_k, None)
 
     # ── Results ────────────────────────────────────────────────────────────────
@@ -708,6 +708,59 @@ with tab1:
                 margin=dict(l=50, r=20, t=45, b=35),
             )
             st.plotly_chart(fig_rs, use_container_width=True)
+
+        # ── Advanced Risk Analytics ────────────────────────────────────────────
+        with st.expander("📊  Advanced Risk Analytics"):
+            adv_rets = equity.pct_change().dropna()
+            var_95 = float(np.percentile(adv_rets, 5))
+            cvar_95 = float(adv_rets[adv_rets <= var_95].mean())
+            pos_sum = adv_rets[adv_rets > 0].sum()
+            neg_sum = adv_rets[adv_rets < 0].abs().sum()
+            omega = float(pos_sum / neg_sum) if neg_sum > 0 else float("inf")
+
+            adv_c1, adv_c2, adv_c3 = st.columns(3)
+            metric_card(adv_c1, "Daily VaR 95%", f"{var_95 * 100:.2f}%",
+                        color="neg" if var_95 < 0 else "neutral")
+            metric_card(adv_c2, "Daily CVaR 95%", f"{cvar_95 * 100:.2f}%",
+                        color="neg" if cvar_95 < 0 else "neutral")
+            metric_card(adv_c3, "Omega Ratio", f"{omega:.2f}",
+                        color=_color_for(omega - 1))
+
+            if cur_asset != "BTC":
+                beta_btn = st.button("▶  Compute Rolling Beta vs BTC (60d)", key="beta_btn")
+                if beta_btn:
+                    btc_df_beta = fetch_prices("BTC", str(df.index[0].date()), str(df.index[-1].date()))
+                    if not btc_df_beta.empty:
+                        btc_rets = btc_df_beta["Close"].pct_change().dropna()
+                        common_idx = adv_rets.index.intersection(btc_rets.index)
+                        if len(common_idx) > 60:
+                            strat_al = adv_rets.reindex(common_idx)
+                            btc_al = btc_rets.reindex(common_idx)
+                            r_beta = (strat_al.rolling(60).cov(btc_al) / btc_al.rolling(60).var()).dropna()
+                            st.session_state["adv_beta"] = r_beta
+
+                if "adv_beta" in st.session_state:
+                    r_beta = st.session_state["adv_beta"]
+                    fig_beta = go.Figure()
+                    fig_beta.add_trace(go.Scatter(
+                        x=r_beta.index, y=r_beta,
+                        mode="lines", name="60d Rolling Beta vs BTC",
+                        line=dict(color=YELLOW, width=1.5),
+                    ))
+                    fig_beta.add_hline(y=1.0, line_dash="dash", line_color=ACCENT, opacity=0.6,
+                                       annotation_text="Beta = 1", annotation_font_color=ACCENT,
+                                       annotation_position="top right")
+                    fig_beta.add_hline(y=0, line_dash="dot", line_color=MUTED, opacity=0.5)
+                    apply_plotly_layout(
+                        fig_beta,
+                        title=f"Rolling 60-Day Beta — {cur_asset} Strategy vs BTC",
+                        yaxis_title="Beta",
+                        height=260,
+                        margin=dict(l=50, r=20, t=45, b=35),
+                    )
+                    st.plotly_chart(fig_beta, use_container_width=True)
+            else:
+                st.info("Asset is BTC — beta vs BTC is 1 by definition.")
 
         # ── Per-trade PnL bars + cumulative line ──────────────────────────────
         if result.trades:
