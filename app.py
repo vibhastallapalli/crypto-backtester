@@ -253,6 +253,47 @@ def apply_plotly_layout(fig: go.Figure, **kwargs) -> go.Figure:
     return fig
 
 
+def _calc_adx(df: pd.DataFrame, period: int = 14) -> pd.Series:
+    high = df["High"].values.astype(float)
+    low = df["Low"].values.astype(float)
+    close = df["Close"].values.astype(float)
+    n = len(df)
+    plus_dm = np.zeros(n)
+    minus_dm = np.zeros(n)
+    tr = np.zeros(n)
+    for i in range(1, n):
+        up = high[i] - high[i - 1]
+        dn = low[i - 1] - low[i]
+        plus_dm[i] = up if up > dn and up > 0 else 0.0
+        minus_dm[i] = dn if dn > up and dn > 0 else 0.0
+        tr[i] = max(high[i] - low[i], abs(high[i] - close[i - 1]), abs(low[i] - close[i - 1]))
+    tr[0] = high[0] - low[0]
+
+    def _wilder(arr, p):
+        out = np.zeros(n)
+        if p - 1 < n:
+            out[p - 1] = arr[:p].sum()
+        for i in range(p, n):
+            out[i] = out[i - 1] - out[i - 1] / p + arr[i]
+        return out
+
+    atr_s = _wilder(tr, period)
+    plus_s = _wilder(plus_dm, period)
+    minus_s = _wilder(minus_dm, period)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        plus_di = np.where(atr_s > 0, 100.0 * plus_s / atr_s, 0.0)
+        minus_di = np.where(atr_s > 0, 100.0 * minus_s / atr_s, 0.0)
+        dx = np.where(plus_di + minus_di > 0,
+                      100.0 * np.abs(plus_di - minus_di) / (plus_di + minus_di), 0.0)
+    adx = np.zeros(n)
+    start = period * 2 - 2
+    if start < n:
+        adx[start] = dx[period - 1: period * 2 - 1].mean()
+    for i in range(start + 1, n):
+        adx[i] = (adx[i - 1] * (period - 1) + dx[i]) / period
+    return pd.Series(adx, index=df.index)
+
+
 # ── Tabs ───────────────────────────────────────────────────────────────────────
 tab1, tab2, tab3, tab4, tab5 = st.tabs(
     ["📈  Strategy Backtester", "🗂  Portfolio Analyzer", "📋  Trade Log", "🔍  SQL Explorer", "⚡  Batch Backtest"]
@@ -761,6 +802,92 @@ with tab1:
                     st.plotly_chart(fig_beta, use_container_width=True)
             else:
                 st.info("Asset is BTC — beta vs BTC is 1 by definition.")
+
+        # ── Market Regime Analysis ─────────────────────────────────────────────
+        with st.expander("🔭  Market Regime Analysis"):
+            ma200 = df["Close"].rolling(200, min_periods=50).mean()
+            adx_s = _calc_adx(df)
+
+            regime = pd.Series("Sideways", index=df.index)
+            regime[(df["Close"] > ma200) & (adx_s > 25)] = "Bull"
+            regime[(df["Close"] < ma200) & (adx_s > 25)] = "Bear"
+
+            _reg_fill = {"Bull": "rgba(0,212,170,0.13)", "Bear": "rgba(255,71,87,0.13)",
+                         "Sideways": "rgba(136,146,160,0.07)"}
+
+            fig_reg = go.Figure()
+            fig_reg.add_trace(go.Scatter(
+                x=df.index, y=df["Close"],
+                mode="lines", name="Price",
+                line=dict(color=TEXT, width=1.5),
+            ))
+            fig_reg.add_trace(go.Scatter(
+                x=df.index, y=ma200,
+                mode="lines", name="200-day MA",
+                line=dict(color=YELLOW, width=1.2, dash="dot"),
+            ))
+
+            prev_reg = None
+            seg_start = None
+            for dt, reg in regime.items():
+                if reg != prev_reg:
+                    if prev_reg is not None:
+                        fig_reg.add_vrect(x0=seg_start, x1=dt,
+                                          fillcolor=_reg_fill[prev_reg], line_width=0, layer="below")
+                    seg_start = dt
+                    prev_reg = reg
+            if prev_reg is not None:
+                fig_reg.add_vrect(x0=seg_start, x1=df.index[-1],
+                                  fillcolor=_reg_fill[prev_reg], line_width=0, layer="below")
+
+            apply_plotly_layout(
+                fig_reg,
+                title=f"{cur_asset} — Market Regime  (green=Bull · red=Bear · grey=Sideways)",
+                yaxis_title="Price (USD)",
+                height=360,
+                margin=dict(l=50, r=20, t=50, b=40),
+            )
+            st.plotly_chart(fig_reg, use_container_width=True)
+
+            rc1, rc2, rc3 = st.columns(3)
+            for col, name, color in [(rc1, "Bull", "pos"), (rc2, "Bear", "neg"), (rc3, "Sideways", "neutral")]:
+                days = int((regime == name).sum())
+                metric_card(col, f"{name} Days", days, color=color)
+
+            if result.trades:
+                trade_regime_rows = []
+                for t in result.trades:
+                    ed = pd.to_datetime(t["entry_date"])
+                    reg_label = regime.get(ed, "Unknown") if ed in regime.index else "Unknown"
+                    trade_regime_rows.append({**t, "regime": reg_label})
+                trd_df = pd.DataFrame(trade_regime_rows)
+                reg_summary = []
+                for rname in ["Bull", "Bear", "Sideways"]:
+                    sub = trd_df[trd_df["regime"] == rname]
+                    if sub.empty:
+                        continue
+                    wins = int((sub["pnl"] > 0).sum())
+                    reg_summary.append({
+                        "Regime": rname,
+                        "# Trades": len(sub),
+                        "Win Rate %": round(wins / len(sub) * 100, 1),
+                        "Avg PnL %": round(float(sub["pnl_pct"].mean()), 2),
+                        "Total PnL %": round(float(sub["pnl_pct"].sum()), 2),
+                    })
+                if reg_summary:
+                    def _rc(val):
+                        if isinstance(val, (int, float)):
+                            return f"color: {ACCENT}" if val > 0 else f"color: {RED}"
+                        return ""
+                    st.markdown(
+                        f'<p style="color:{MUTED};font-size:0.82rem;margin-top:10px;">'
+                        "Trade performance split by detected market regime:</p>",
+                        unsafe_allow_html=True,
+                    )
+                    st.dataframe(
+                        pd.DataFrame(reg_summary).style.applymap(_rc, subset=["Avg PnL %", "Total PnL %"]),
+                        use_container_width=True,
+                    )
 
         # ── Per-trade PnL bars + cumulative line ──────────────────────────────
         if result.trades:
