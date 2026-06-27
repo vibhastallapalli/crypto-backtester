@@ -323,6 +323,27 @@ def keltner_channel(
     return _simulate(df, "signal", asset, "Keltner Channel", stop_loss, take_profit, atr_trail_mult, atr_period)
 
 
+def vwap_crossover(
+    df: pd.DataFrame,
+    asset: str,
+    window: int = 20,
+    stop_loss: float = 0.0,
+    take_profit: float = 0.0,
+    atr_trail_mult: float = 0.0,
+    atr_period: int = 14,
+) -> BacktestResult:
+    df = df.copy()
+    typical = (df["High"] + df["Low"] + df["Close"]) / 3
+    df["vwap"] = (typical * df["Volume"]).rolling(window).sum() / df["Volume"].rolling(window).sum()
+    df = df.dropna(subset=["vwap"]).copy()
+    cross_up = (df["Close"] > df["vwap"]) & (df["Close"].shift(1) <= df["vwap"].shift(1))
+    cross_dn = (df["Close"] < df["vwap"]) & (df["Close"].shift(1) >= df["vwap"].shift(1))
+    df["signal"] = "hold"
+    df.loc[cross_up, "signal"] = "buy"
+    df.loc[cross_dn, "signal"] = "sell"
+    return _simulate(df, "signal", asset, "VWAP Crossover", stop_loss, take_profit, atr_trail_mult, atr_period)
+
+
 def compute_metrics(result: BacktestResult) -> dict:
     equity = result.equity_curve
     trades = result.trades

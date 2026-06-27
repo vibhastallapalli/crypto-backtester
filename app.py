@@ -20,6 +20,7 @@ from strategies import (
     rsi_mean_reversion,
     stochastic_oscillator,
     volume_breakout,
+    vwap_crossover,
     zscore_mean_reversion,
 )
 
@@ -174,7 +175,7 @@ st.markdown(
 
 # ── Constants ──────────────────────────────────────────────────────────────────
 ASSETS = ["BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "AVAX", "DOGE", "LTC", "DOT", "LINK", "MATIC", "UNI"]
-STRATEGIES = ["MA Crossover", "EMA Crossover", "RSI Mean Reversion", "Stochastic Oscillator", "Volume Breakout", "MACD Crossover", "Bollinger Bands", "Z-Score MR", "Keltner Channel"]
+STRATEGIES = ["MA Crossover", "EMA Crossover", "RSI Mean Reversion", "Stochastic Oscillator", "Volume Breakout", "MACD Crossover", "Bollinger Bands", "Z-Score MR", "Keltner Channel", "VWAP Crossover"]
 D_START = datetime.date(2022, 1, 1)
 D_END = datetime.date(2024, 12, 31)
 
@@ -325,11 +326,16 @@ with tab1:
         zs_threshold = p2.slider("Threshold", 0.5, 4.0, 2.0, 0.1,
                                   help="Buy when Z-score < −threshold; sell when Z-score crosses 0.")
         params = {"window": zs_window, "threshold": zs_threshold}
-    else:  # Keltner Channel
+    elif strategy == "Keltner Channel":
         p1, p2, p3 = st.columns([1, 1, 2])
         kc_ema_period = p1.slider("EMA Period", 5, 50, 20)
         kc_atr_mult = p2.slider("ATR Mult", 0.5, 4.0, 1.5, 0.1)
         params = {"ema_period": kc_ema_period, "atr_mult": kc_atr_mult}
+    else:  # VWAP Crossover
+        p1, p2, p3 = st.columns([1, 1, 2])
+        vwap_window = p1.slider("VWAP Window", 5, 60, 20,
+                                help="Rolling window (days) for volume-weighted average price calculation.")
+        params = {"window": vwap_window}
 
     st.markdown(
         f'<p style="color:{MUTED};font-size:0.8rem;margin:6px 0 2px;">Risk Controls</p>',
@@ -381,8 +387,10 @@ with tab1:
                 result = bollinger_bands(df, asset, **params, **sl_tp)
             elif strategy == "Z-Score MR":
                 result = zscore_mean_reversion(df, asset, **params, **sl_tp)
-            else:
+            elif strategy == "Keltner Channel":
                 result = keltner_channel(df, asset, **params, **sl_tp)
+            else:
+                result = vwap_crossover(df, asset, **params, **sl_tp)
 
         if result.trades:
             save_trades(result.trades)
@@ -564,6 +572,13 @@ with tab1:
                 mode="lines", name="KC Lower",
                 line=dict(color="#ff6b81", width=1, dash="dot"), opacity=0.7,
                 fill="tonexty", fillcolor="rgba(255,107,129,0.04)",
+            ))
+        elif cur_strat == "VWAP Crossover" and "vwap" in sig_df.columns:
+            fig_p.add_trace(go.Scatter(
+                x=sig_df.index, y=sig_df["vwap"],
+                mode="lines", name=f"VWAP ({cur_params['window']}d)",
+                line=dict(color="#a29bfe", width=1.5, dash="dot"),
+                opacity=0.85,
             ))
 
         if not buys.empty:
@@ -840,6 +855,7 @@ with tab1:
             "Bollinger Bands": bollinger_bands,
             "Z-Score MR": zscore_mean_reversion,
             "Keltner Channel": keltner_channel,
+            "VWAP Crossover": vwap_crossover,
         }
         wf_btn = st.button("▶  Walk-Forward Analysis (5 windows)", key="wf_btn")
         if wf_btn:
@@ -960,6 +976,9 @@ with tab1:
             "Keltner Channel": {
                 "ema_period": {"min": 5, "max": 50, "type": int},
                 "atr_mult": {"min": 0.5, "max": 4.0, "type": float},
+            },
+            "VWAP Crossover": {
+                "window": {"min": 5, "max": 60, "type": int},
             },
         }
         with st.expander("🔬  Parameter Heatmap"):
@@ -1112,6 +1131,7 @@ with tab1:
                     ("Bollinger Bands", bollinger_bands, {"period": 20, "std_dev": 2.0}),
                     ("Z-Score MR", zscore_mean_reversion, {"window": 20, "threshold": 2.0}),
                     ("Keltner Channel", keltner_channel, {"ema_period": 20, "atr_mult": 1.5}),
+                    ("VWAP Crossover", vwap_crossover, {"window": 20}),
                 ]:
                     r = strat_fn(df, cur_asset, **strat_params)
                     cmp_results[strat_name] = (r, compute_metrics(r))
@@ -1658,6 +1678,7 @@ with tab5:
         "Bollinger Bands": {"period": 20, "std_dev": 2.0},
         "Z-Score MR": {"window": 20, "threshold": 2.0},
         "Keltner Channel": {"ema_period": 20, "atr_mult": 1.5},
+        "VWAP Crossover": {"window": 20},
     }
     BATCH_FN_MAP = {
         "MA Crossover": ma_crossover,
@@ -1669,6 +1690,7 @@ with tab5:
         "Bollinger Bands": bollinger_bands,
         "Z-Score MR": zscore_mean_reversion,
         "Keltner Channel": keltner_channel,
+        "VWAP Crossover": vwap_crossover,
     }
 
     run_batch_btn = st.button("▶  Run Batch", key="run_batch")
