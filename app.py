@@ -295,8 +295,8 @@ def _calc_adx(df: pd.DataFrame, period: int = 14) -> pd.Series:
 
 
 # ── Tabs ───────────────────────────────────────────────────────────────────────
-tab1, tab2, tab3, tab4, tab5 = st.tabs(
-    ["📈  Strategy Backtester", "🗂  Portfolio Analyzer", "📋  Trade Log", "🔍  SQL Explorer", "⚡  Batch Backtest"]
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
+    ["📈  Strategy Backtester", "🗂  Portfolio Analyzer", "📋  Trade Log", "🔍  SQL Explorer", "⚡  Batch Backtest", "📡  Signal Scanner"]
 )
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -2017,3 +2017,144 @@ with tab5:
                 height=380,
             )
             st.plotly_chart(fig_eq_b, use_container_width=True)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 6 — Signal Scanner
+# ══════════════════════════════════════════════════════════════════════════════
+with tab6:
+    st.markdown(
+        f'<p style="color:{MUTED};font-size:0.82rem;margin-bottom:10px;">'
+        "Run all 10 strategies on selected assets and see the most recent buy/sell signal from each."
+        " Green = last signal was BUY · Red = SELL · Grey = no signal generated.</p>",
+        unsafe_allow_html=True,
+    )
+
+    sc_c1, sc_c2 = st.columns([2, 1])
+    with sc_c1:
+        sc_assets = st.multiselect("Assets to scan", ASSETS, default=ASSETS, key="sc_assets")
+    with sc_c2:
+        sc_dates = st.date_input(
+            "Lookback period",
+            value=(datetime.date(2024, 1, 1), datetime.date(2024, 12, 31)),
+            min_value=datetime.date(2018, 1, 1),
+            max_value=datetime.date.today(),
+            key="sc_dates",
+        )
+
+    _SC_FN_MAP = {
+        "MA Cross": (ma_crossover, {"fast": 10, "slow": 30}),
+        "EMA Cross": (ema_crossover, {"fast": 9, "slow": 21}),
+        "RSI MR": (rsi_mean_reversion, {"period": 14, "oversold": 30, "overbought": 70}),
+        "Stoch": (stochastic_oscillator, {"k_period": 14, "d_period": 3, "oversold": 20, "overbought": 80}),
+        "Vol Break": (volume_breakout, {"multiplier": 2.0, "lookback": 20}),
+        "MACD": (macd_crossover, {"fast": 12, "slow": 26, "signal": 9}),
+        "BB": (bollinger_bands, {"period": 20, "std_dev": 2.0}),
+        "Z-Score": (zscore_mean_reversion, {"window": 20, "threshold": 2.0}),
+        "Keltner": (keltner_channel, {"ema_period": 20, "atr_mult": 1.5}),
+        "VWAP": (vwap_crossover, {"window": 20}),
+    }
+
+    scan_btn = st.button("▶  Run Signal Scan", key="scan_btn")
+
+    if scan_btn:
+        if not sc_assets:
+            st.warning("Select at least one asset.")
+        elif not isinstance(sc_dates, (list, tuple)) or len(sc_dates) != 2:
+            st.warning("Select a valid date range.")
+        else:
+            sc_s, sc_e = str(sc_dates[0]), str(sc_dates[1])
+            strat_names = list(_SC_FN_MAP.keys())
+            signal_matrix = {}
+            prog_sc = st.progress(0, text="Scanning…")
+            for ai, asset_sc in enumerate(sc_assets):
+                prog_sc.progress((ai + 1) / len(sc_assets), text=f"Scanning {asset_sc}…")
+                try:
+                    adf_sc = fetch_prices(asset_sc, sc_s, sc_e)
+                    if adf_sc.empty:
+                        signal_matrix[asset_sc] = {s: "—" for s in strat_names}
+                        continue
+                    row = {}
+                    for sname, (sfn, sparams) in _SC_FN_MAP.items():
+                        try:
+                            sr = sfn(adf_sc, asset_sc, **sparams)
+                            sig_col = sr.signals["signal"].dropna()
+                            sig_col = sig_col[sig_col != ""]
+                            row[sname] = sig_col.iloc[-1] if not sig_col.empty else "—"
+                        except Exception:
+                            row[sname] = "—"
+                    signal_matrix[asset_sc] = row
+                except Exception:
+                    signal_matrix[asset_sc] = {s: "—" for s in strat_names}
+            prog_sc.empty()
+            st.session_state["sc_matrix"] = signal_matrix
+            st.session_state["sc_strat_names"] = strat_names
+
+    if "sc_matrix" in st.session_state:
+        sc_mat = st.session_state["sc_matrix"]
+        sc_strats = st.session_state["sc_strat_names"]
+        sc_asset_list = list(sc_mat.keys())
+
+        # Build numeric matrix for heatmap: buy=1, sell=-1, none=0
+        z_num = []
+        z_text = []
+        for asset_sc in sc_asset_list:
+            row_num, row_txt = [], []
+            for sn in sc_strats:
+                sig = sc_mat[asset_sc].get(sn, "—")
+                row_num.append(1 if sig == "buy" else (-1 if sig == "sell" else 0))
+                row_txt.append("BUY" if sig == "buy" else ("SELL" if sig == "sell" else "—"))
+            z_num.append(row_num)
+            z_text.append(row_txt)
+
+        fig_sc = go.Figure(go.Heatmap(
+            z=z_num,
+            x=sc_strats,
+            y=sc_asset_list,
+            colorscale=[[0, RED], [0.5, "#1a2744"], [1, ACCENT]],
+            zmin=-1, zmax=1,
+            zmid=0,
+            text=z_text,
+            texttemplate="%{text}",
+            textfont=dict(size=11, color=TEXT, family="Space Mono, monospace"),
+            showscale=False,
+        ))
+        apply_plotly_layout(
+            fig_sc,
+            title="Signal Matrix — last signal from each strategy (default params)",
+            height=max(300, 60 + len(sc_asset_list) * 42),
+            margin=dict(l=70, r=20, t=55, b=80),
+            xaxis=dict(gridcolor=BORDER, showgrid=False, zeroline=False, tickangle=-30),
+            yaxis=dict(gridcolor=BORDER, showgrid=False, zeroline=False),
+        )
+        st.plotly_chart(fig_sc, use_container_width=True)
+
+        # Bullish / Bearish score per asset
+        sc_summary = []
+        for asset_sc in sc_asset_list:
+            row = sc_mat[asset_sc]
+            buys = sum(1 for v in row.values() if v == "buy")
+            sells = sum(1 for v in row.values() if v == "sell")
+            sc_summary.append({
+                "Asset": asset_sc,
+                "Buy signals": buys,
+                "Sell signals": sells,
+                "Neutral": len(sc_strats) - buys - sells,
+                "Bias": "Bullish" if buys > sells else ("Bearish" if sells > buys else "Neutral"),
+            })
+        sc_sum_df = pd.DataFrame(sc_summary).sort_values("Buy signals", ascending=False).reset_index(drop=True)
+
+        def _sc_bias_color(val):
+            if val == "Bullish":
+                return f"color: {ACCENT}"
+            if val == "Bearish":
+                return f"color: {RED}"
+            return f"color: {MUTED}"
+
+        st.markdown(
+            f'<p style="color:{MUTED};font-size:0.82rem;margin-top:8px;">Signal tally per asset:</p>',
+            unsafe_allow_html=True,
+        )
+        st.dataframe(
+            sc_sum_df.style.applymap(_sc_bias_color, subset=["Bias"]),
+            use_container_width=True,
+        )
