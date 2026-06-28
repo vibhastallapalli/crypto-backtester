@@ -450,7 +450,7 @@ with tab1:
             "atr_trail_mult": atr_trail_mult,
             "atr_period": atr_period,
         }
-        for _k in ("mc_curves", "mc_pnl", "wf_rows", "hm_data", "adv_beta"):
+        for _k in ("mc_curves", "mc_pnl", "wf_rows", "hm_data", "adv_beta", "spy_data"):
             st.session_state.pop(_k, None)
 
     # ── Results ────────────────────────────────────────────────────────────────
@@ -888,6 +888,73 @@ with tab1:
                         pd.DataFrame(reg_summary).style.applymap(_rc, subset=["Avg PnL %", "Total PnL %"]),
                         use_container_width=True,
                     )
+
+        # ── S&P 500 Benchmark ──────────────────────────────────────────────────
+        with st.expander("📊  vs S&P 500 Benchmark"):
+            spy_btn = st.button("▶  Load S&P 500 (SPY) data", key="spy_btn")
+            if spy_btn:
+                spy_raw = fetch_prices("SPY", str(df.index[0].date()), str(df.index[-1].date()))
+                if spy_raw.empty:
+                    st.warning("Could not fetch SPY data for this date range.")
+                else:
+                    st.session_state["spy_data"] = spy_raw
+
+            if "spy_data" in st.session_state:
+                spy_raw = st.session_state["spy_data"]
+                spy_close = spy_raw["Close"].reindex(equity.index, method="ffill").dropna()
+                spy_norm = spy_close / float(spy_close.iloc[0])
+
+                common_start = equity.index[0]
+                bh_prices_spy = df["Close"].loc[common_start:]
+                bh_spy = (bh_prices_spy / float(bh_prices_spy.iloc[0])).reindex(equity.index, method="ffill")
+
+                fig_spy = go.Figure()
+                fig_spy.add_trace(go.Scatter(
+                    x=equity.index, y=equity,
+                    mode="lines", name="Strategy",
+                    line=dict(color=ACCENT, width=2),
+                ))
+                fig_spy.add_trace(go.Scatter(
+                    x=bh_spy.index, y=bh_spy,
+                    mode="lines", name=f"{cur_asset} Buy & Hold",
+                    line=dict(color=MUTED, width=1.5, dash="dash"),
+                ))
+                fig_spy.add_trace(go.Scatter(
+                    x=spy_norm.index, y=spy_norm,
+                    mode="lines", name="S&P 500 (SPY)",
+                    line=dict(color=YELLOW, width=1.8, dash="dot"),
+                ))
+                fig_spy.add_hline(y=1.0, line_dash="dot", line_color=BORDER, opacity=0.5)
+                apply_plotly_layout(
+                    fig_spy,
+                    title=f"{cur_asset} Strategy vs Buy & Hold vs S&P 500",
+                    yaxis_title="Portfolio Value (normalized to 1)",
+                    height=360,
+                )
+                st.plotly_chart(fig_spy, use_container_width=True)
+
+                # Alpha, Beta, Information Ratio
+                strat_rets = equity.pct_change().dropna()
+                spy_rets = spy_norm.pct_change().dropna()
+                common_ri = strat_rets.index.intersection(spy_rets.index)
+                strat_r = strat_rets.reindex(common_ri)
+                spy_r = spy_rets.reindex(common_ri)
+
+                spy_var = float(spy_r.var())
+                beta_spy = float(strat_r.cov(spy_r) / spy_var) if spy_var > 0 else 0.0
+                strat_ann = float(strat_r.mean() * 252)
+                spy_ann = float(spy_r.mean() * 252)
+                alpha_ann = strat_ann - beta_spy * spy_ann
+                excess = strat_r - spy_r
+                ir = float(excess.mean() / excess.std() * np.sqrt(252)) if excess.std() > 0 else 0.0
+
+                bm_c1, bm_c2, bm_c3, bm_c4 = st.columns(4)
+                metric_card(bm_c1, "Alpha (ann.)", f"{alpha_ann * 100:.2f}%",
+                            color=_color_for(alpha_ann))
+                metric_card(bm_c2, "Beta vs SPY", f"{beta_spy:.2f}", color="neutral")
+                metric_card(bm_c3, "Info Ratio", f"{ir:.2f}", color=_color_for(ir))
+                metric_card(bm_c4, "SPY Return", f"{(float(spy_norm.iloc[-1]) - 1) * 100:.2f}%",
+                            color=_color_for(float(spy_norm.iloc[-1]) - 1))
 
         # ── Per-trade PnL bars + cumulative line ──────────────────────────────
         if result.trades:

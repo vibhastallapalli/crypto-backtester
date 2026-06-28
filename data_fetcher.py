@@ -16,6 +16,7 @@ TICKER_MAP = {
     "LINK": "LINK-USD",
     "MATIC": "MATIC-USD",
     "UNI": "UNI-USD",
+    "SPY": "SPY",
 }
 
 
