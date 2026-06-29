@@ -1801,6 +1801,166 @@ with tab3:
             )
             st.plotly_chart(fig_heat, use_container_width=True)
 
+        # ── Trade Duration Analytics ───────────────────────────────────────────
+        st.divider()
+        st.markdown(
+            f'<p style="color:{ACCENT};font-family:Space Mono,monospace;font-size:0.95rem;'
+            f'font-weight:700;margin-bottom:8px;">Trade Duration Analytics</p>',
+            unsafe_allow_html=True,
+        )
+
+        dur_df = trades_df.copy()
+        dur_df["entry_dt"] = pd.to_datetime(dur_df["entry_date"])
+        dur_df["exit_dt"] = pd.to_datetime(dur_df["exit_date"])
+        dur_df["hold_days"] = (dur_df["exit_dt"] - dur_df["entry_dt"]).dt.days.clip(lower=0)
+        dur_df["weekday"] = dur_df["entry_dt"].dt.day_name()
+        dur_df["month_num"] = dur_df["entry_dt"].dt.month
+
+        _day_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        _month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+        # Hold duration buckets
+        def _dur_bucket(d):
+            if d <= 3:
+                return "1–3d"
+            if d <= 7:
+                return "4–7d"
+            if d <= 14:
+                return "8–14d"
+            if d <= 30:
+                return "15–30d"
+            return "31d+"
+
+        dur_df["bucket"] = dur_df["hold_days"].apply(_dur_bucket)
+        bucket_order = ["1–3d", "4–7d", "8–14d", "15–30d", "31d+"]
+        bucket_order = [b for b in bucket_order if b in dur_df["bucket"].values]
+
+        da_left, da_right = st.columns(2)
+
+        with da_left:
+            # Hold duration histogram
+            dur_counts = dur_df["hold_days"]
+            fig_dur = go.Figure(go.Histogram(
+                x=dur_counts,
+                nbinsx=min(40, max(10, int(dur_counts.max() or 10))),
+                marker_color=ACCENT,
+                marker_line=dict(color=BORDER, width=0.5),
+                name="# Trades",
+            ))
+            apply_plotly_layout(
+                fig_dur,
+                title="Hold Duration Distribution (days)",
+                xaxis_title="Days held",
+                yaxis_title="# Trades",
+                height=280,
+                margin=dict(l=50, r=20, t=45, b=35),
+            )
+            st.plotly_chart(fig_dur, use_container_width=True)
+
+        with da_right:
+            # Avg PnL by hold bucket
+            bucket_stats = (
+                dur_df.groupby("bucket")["pnl_pct"]
+                .mean()
+                .reindex(bucket_order)
+                .fillna(0)
+            )
+            bucket_colors = [ACCENT if v >= 0 else RED for v in bucket_stats]
+            fig_bkt = go.Figure(go.Bar(
+                x=bucket_stats.index.tolist(),
+                y=bucket_stats.values.tolist(),
+                marker_color=bucket_colors,
+                marker_line=dict(color=BORDER, width=0.5),
+                text=[f"{v:.2f}%" for v in bucket_stats],
+                textposition="outside",
+                textfont=dict(color=TEXT),
+                name="Avg PnL %",
+            ))
+            fig_bkt.add_hline(y=0, line_dash="dot", line_color=MUTED, opacity=0.5)
+            apply_plotly_layout(
+                fig_bkt,
+                title="Avg PnL % by Hold Duration",
+                xaxis_title="Hold duration",
+                yaxis_title="Avg PnL %",
+                height=280,
+                margin=dict(l=50, r=20, t=45, b=35),
+            )
+            st.plotly_chart(fig_bkt, use_container_width=True)
+
+        da_left2, da_right2 = st.columns(2)
+
+        with da_left2:
+            # Avg PnL by day of week (entry day)
+            wd_stats = (
+                dur_df.groupby("weekday")["pnl_pct"]
+                .mean()
+                .reindex([d for d in _day_order if d in dur_df["weekday"].values])
+                .fillna(0)
+            )
+            wd_colors = [ACCENT if v >= 0 else RED for v in wd_stats]
+            fig_wd = go.Figure(go.Bar(
+                x=[d[:3] for d in wd_stats.index],
+                y=wd_stats.values.tolist(),
+                marker_color=wd_colors,
+                marker_line=dict(color=BORDER, width=0.5),
+                text=[f"{v:.2f}%" for v in wd_stats],
+                textposition="outside",
+                textfont=dict(color=TEXT),
+                name="Avg PnL %",
+            ))
+            fig_wd.add_hline(y=0, line_dash="dot", line_color=MUTED, opacity=0.5)
+            apply_plotly_layout(
+                fig_wd,
+                title="Avg PnL % by Entry Weekday",
+                xaxis_title="Day of week",
+                yaxis_title="Avg PnL %",
+                height=280,
+                margin=dict(l=50, r=20, t=45, b=35),
+            )
+            st.plotly_chart(fig_wd, use_container_width=True)
+
+        with da_right2:
+            # Avg PnL by entry month
+            mo_stats = (
+                dur_df.groupby("month_num")["pnl_pct"]
+                .mean()
+                .reindex(range(1, 13))
+                .fillna(0)
+            )
+            mo_present = mo_stats[mo_stats != 0]
+            mo_colors = [ACCENT if v >= 0 else RED for v in mo_present]
+            fig_mo = go.Figure(go.Bar(
+                x=[_month_names[m - 1] for m in mo_present.index],
+                y=mo_present.values.tolist(),
+                marker_color=mo_colors,
+                marker_line=dict(color=BORDER, width=0.5),
+                text=[f"{v:.2f}%" for v in mo_present],
+                textposition="outside",
+                textfont=dict(color=TEXT),
+                name="Avg PnL %",
+            ))
+            fig_mo.add_hline(y=0, line_dash="dot", line_color=MUTED, opacity=0.5)
+            apply_plotly_layout(
+                fig_mo,
+                title="Avg PnL % by Entry Month",
+                xaxis_title="Month",
+                yaxis_title="Avg PnL %",
+                height=280,
+                margin=dict(l=50, r=20, t=45, b=35),
+            )
+            st.plotly_chart(fig_mo, use_container_width=True)
+
+        # Summary stats
+        avg_hold = float(dur_df["hold_days"].mean())
+        med_hold = float(dur_df["hold_days"].median())
+        max_hold = int(dur_df["hold_days"].max())
+        best_day = wd_stats.idxmax() if not wd_stats.empty else "—"
+        da_sc1, da_sc2, da_sc3, da_sc4 = st.columns(4)
+        metric_card(da_sc1, "Avg Hold (days)", f"{avg_hold:.1f}", color="neutral")
+        metric_card(da_sc2, "Median Hold (days)", f"{med_hold:.0f}", color="neutral")
+        metric_card(da_sc3, "Longest Trade (days)", str(max_hold), color="neutral")
+        metric_card(da_sc4, "Best Entry Day", best_day[:3] if best_day != "—" else "—", color="pos")
+
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 4 — SQL Explorer
 # ══════════════════════════════════════════════════════════════════════════════
