@@ -108,6 +108,11 @@ h1, h2, h3,
     transition: background 0.15s;
 }}
 .stButton > button:hover {{ background: #00b899 !important; color: {BG} !important; }}
+.stButton > button:focus-visible,
+.stTabs [data-baseweb="tab"]:focus-visible {{
+    outline: 2px solid {YELLOW};
+    outline-offset: 2px;
+}}
 
 /* Metric cards */
 .mc-wrap {{
