@@ -174,7 +174,7 @@ st.markdown(
 )
 st.markdown(
     f'<p style="color:{MUTED};margin-top:2px;margin-bottom:1rem;">'
-    "Algorithmic crypto strategy backtester — powered by yfinance + SQLite</p>",
+    "Compare crypto strategies across historical market data.</p>",
     unsafe_allow_html=True,
 )
 
