@@ -2016,7 +2016,7 @@ with tab4:
                 st.error(f"SQL error: {exc}")
 
     # Schema reference
-    with st.expander("Database Schema", expanded=False):
+    with st.expander("🗄️  Database Schema", expanded=False):
         st.markdown(
             f"""
 ```sql
