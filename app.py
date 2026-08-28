@@ -94,6 +94,10 @@ h1, h2, h3,
     background: {ACCENT}22 !important;
     color: {ACCENT} !important;
 }}
+.stTabs [data-baseweb="tab"][aria-selected="false"]:hover {{
+    background: {ACCENT}0D !important;
+    color: {TEXT} !important;
+}}
 
 /* Buttons */
 .stButton > button {{
