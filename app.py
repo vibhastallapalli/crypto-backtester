@@ -117,6 +117,11 @@ h1, h2, h3,
     outline: 2px solid {YELLOW};
     outline-offset: 2px;
 }}
+@media (prefers-reduced-motion: reduce) {{
+    .stButton > button {{
+        transition: none;
+    }}
+}}
 
 /* Metric cards */
 .mc-wrap {{
