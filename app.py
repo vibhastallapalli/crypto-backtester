@@ -163,7 +163,7 @@ h1, h2, h3,
     border-color: {BORDER} !important;
     color: {TEXT} !important;
 }}
-textarea {{ background: {CARD} !important; color: {TEXT} !important; }}
+textarea {{ background: {CARD} !important; color: {TEXT} !important; font-family: 'Space Mono', monospace !important; }}
 
 /* Divider */
 hr {{ border-color: {BORDER}; }}
