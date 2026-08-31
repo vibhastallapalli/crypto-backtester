@@ -2000,6 +2000,7 @@ with tab4:
         value=st.session_state["sql_text"],
         height=130,
         placeholder="SELECT * FROM trades LIMIT 10",
+        help="Choose an example above or enter a custom SQLite query.",
         key="sql_input",
     )
 
