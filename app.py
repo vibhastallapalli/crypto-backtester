@@ -117,6 +117,11 @@ h1, h2, h3,
     outline: 2px solid {YELLOW};
     outline-offset: 2px;
 }}
+@media (prefers-reduced-motion: reduce) {{
+    .stButton > button {{
+        transition: none;
+    }}
+}}
 
 /* Metric cards */
 .mc-wrap {{
@@ -158,7 +163,7 @@ h1, h2, h3,
     border-color: {BORDER} !important;
     color: {TEXT} !important;
 }}
-textarea {{ background: {CARD} !important; color: {TEXT} !important; }}
+textarea {{ background: {CARD} !important; color: {TEXT} !important; font-family: 'Space Mono', monospace !important; }}
 
 /* Divider */
 hr {{ border-color: {BORDER}; }}
@@ -2000,6 +2005,7 @@ with tab4:
         value=st.session_state["sql_text"],
         height=130,
         placeholder="SELECT * FROM trades LIMIT 10",
+        help="Choose an example above or enter a custom SQLite query.",
         key="sql_input",
     )
 
