@@ -1731,7 +1731,7 @@ with tab2:
                         st.plotly_chart(fig_ef, use_container_width=True)
 
     elif analyze_btn is False:
-        st.info("Select assets and a date range, then click Analyze Portfolio.")
+        st.info("Select 2–8 assets and a date range, then choose Analyze Portfolio.")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 3 — Trade Log
