@@ -113,7 +113,11 @@ h1, h2, h3,
 }}
 .stButton > button:hover {{ background: #00b899 !important; color: {BG} !important; }}
 .stButton > button:focus-visible,
-.stTabs [data-baseweb="tab"]:focus-visible {{
+.stTabs [data-baseweb="tab"]:focus-visible,
+.stSelectbox [data-baseweb="select"]:focus-within,
+.stMultiSelect [data-baseweb="select"]:focus-within,
+.stDateInput [data-baseweb="input"]:focus-within,
+.stTextArea textarea:focus-visible {{
     outline: 2px solid {YELLOW};
     outline-offset: 2px;
 }}
