@@ -1757,7 +1757,7 @@ with tab3:
     trades_df = get_trades(asset=asset_f, start=s_f, end=e_f, win_loss=wl_f)
 
     if trades_df.empty:
-        st.info("No trades found. Run a backtest to populate the trade log.")
+        st.info("No trades match the current filters. Adjust the filters or run a backtest to add trades.")
     else:
         total = len(trades_df)
         wins = int((trades_df["pnl"] > 0).sum())
