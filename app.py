@@ -2081,7 +2081,7 @@ CREATE TABLE portfolio (
 with tab5:
     st.markdown(
         f'<p style="color:{MUTED};font-size:0.82rem;margin-bottom:10px;">'
-        "Run one strategy across multiple assets and rank results by Sharpe ratio.</p>",
+        "Run one strategy with its default parameters across multiple assets and rank results by Sharpe ratio.</p>",
         unsafe_allow_html=True,
     )
 
