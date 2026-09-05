@@ -53,6 +53,11 @@ PLOTLY_BASE = dict(
     yaxis=dict(gridcolor=BORDER, showgrid=True, zeroline=False),
     margin=dict(l=50, r=20, t=50, b=40),
     legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(color=TEXT)),
+    hoverlabel=dict(
+        bgcolor=CARD,
+        bordercolor=BORDER,
+        font=dict(color=TEXT, family="Space Mono, monospace", size=12),
+    ),
 )
 
 # ── Custom CSS ─────────────────────────────────────────────────────────────────
