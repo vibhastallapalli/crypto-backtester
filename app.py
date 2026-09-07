@@ -1740,7 +1740,12 @@ with tab3:
             key="tl_dates",
         )
     with c3:
-        tl_wl = st.selectbox("Result", ["All", "Win", "Loss"], key="tl_wl")
+        tl_wl = st.selectbox(
+            "Result",
+            ["All", "Win", "Loss"],
+            help="Wins have positive PnL; losses have zero or negative PnL.",
+            key="tl_wl",
+        )
 
     asset_f = None if tl_asset == "All" else tl_asset
     wl_f = None if tl_wl == "All" else tl_wl
