@@ -178,7 +178,7 @@ div[data-testid="stDataFrame"] {{ border: 1px solid {BORDER}; border-radius: 8px
 # ── Header ─────────────────────────────────────────────────────────────────────
 st.markdown(
     f'<h1 style="margin-bottom:0;font-family:Space Mono,monospace;color:{ACCENT};">'
-    "⬡ CryptoBacktest</h1>",
+    '<span aria-hidden="true">⬡</span> CryptoBacktest</h1>',
     unsafe_allow_html=True,
 )
 st.markdown(
