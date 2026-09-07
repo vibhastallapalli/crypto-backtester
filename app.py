@@ -333,7 +333,7 @@ with tab1:
 
     # Dynamic params
     st.markdown(
-        f'<p style="color:{MUTED};font-size:0.8rem;margin:6px 0 2px;">Parameters</p>',
+        f'<p role="heading" aria-level="2" style="color:{MUTED};font-size:0.8rem;margin:6px 0 2px;">Parameters</p>',
         unsafe_allow_html=True,
     )
     if strategy == "MA Crossover":
@@ -393,7 +393,7 @@ with tab1:
         params = {"window": vwap_window}
 
     st.markdown(
-        f'<p style="color:{MUTED};font-size:0.8rem;margin:6px 0 2px;">Risk Controls</p>',
+        f'<p role="heading" aria-level="2" style="color:{MUTED};font-size:0.8rem;margin:6px 0 2px;">Risk Controls</p>',
         unsafe_allow_html=True,
     )
     rc1, rc2, rc3, rc4 = st.columns([1, 1, 1, 1])
