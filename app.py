@@ -901,6 +901,7 @@ with tab1:
                     st.dataframe(
                         pd.DataFrame(reg_summary).style.applymap(_rc, subset=["Avg PnL %", "Total PnL %"]),
                         use_container_width=True,
+                        hide_index=True,
                     )
 
         # ── S&P 500 Benchmark ──────────────────────────────────────────────────
@@ -1194,6 +1195,7 @@ with tab1:
                 .applymap(_wf_color, subset=["Return %", "Sharpe"])
                 .format({"Return %": "{:.2f}%", "Sharpe": "{:.2f}"}),
                 use_container_width=True,
+                hide_index=True,
             )
 
         # ── Parameter Heatmap ─────────────────────────────────────────────────
@@ -1778,7 +1780,7 @@ with tab3:
         )
 
         styled = trades_df.style.applymap(_highlight_pnl, subset=["pnl", "pnl_pct"])
-        st.dataframe(styled, use_container_width=True, height=480)
+        st.dataframe(styled, use_container_width=True, height=480, hide_index=True)
 
         # ── Monthly returns heatmap ────────────────────────────────────────────
         monthly = trades_df.copy()
@@ -2021,7 +2023,7 @@ with tab4:
                 rc = len(res_df)
                 st.success(f"✓  {rc} row{'s' if rc != 1 else ''} returned")
                 if not res_df.empty:
-                    st.dataframe(res_df, use_container_width=True, height=420)
+                    st.dataframe(res_df, use_container_width=True, height=420, hide_index=True)
             except Exception as exc:
                 st.error(f"SQL error: {exc}")
 
@@ -2399,4 +2401,5 @@ with tab6:
         st.dataframe(
             sc_sum_df.style.applymap(_sc_bias_color, subset=["Bias"]),
             use_container_width=True,
+            hide_index=True,
         )
