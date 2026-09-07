@@ -1983,7 +1983,7 @@ with tab3:
 with tab4:
     st.markdown(
         f'<p style="color:{MUTED};font-size:0.82rem;margin-bottom:6px;">'
-        "Run arbitrary SQL against the local SQLite database (read operations only recommended).</p>",
+        "Explore the local SQLite database with a SELECT query or choose an example below.</p>",
         unsafe_allow_html=True,
     )
 
