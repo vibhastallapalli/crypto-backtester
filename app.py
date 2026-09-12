@@ -80,6 +80,7 @@ h1, h2, h3,
     border-radius: 10px;
     padding: 4px 6px;
     border: 1px solid {BORDER};
+    overflow-x: auto;
 }}
 .stTabs [data-baseweb="tab"] {{
     background: transparent;
