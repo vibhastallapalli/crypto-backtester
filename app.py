@@ -1452,6 +1452,7 @@ with tab2:
         pa_assets = st.multiselect(
             "Select Cryptos (2–8)", ASSETS,
             default=["BTC", "ETH", "SOL", "BNB"],
+            help="Choose at least two assets to compare correlations and risk-return statistics.",
         )
     with c2:
         pa_dates = st.date_input(
