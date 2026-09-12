@@ -2083,7 +2083,12 @@ with tab5:
     with bb_c1:
         batch_assets = st.multiselect("Assets", ASSETS, default=ASSETS, key="batch_assets")
     with bb_c2:
-        batch_strategy = st.selectbox("Strategy", STRATEGIES, key="batch_strategy")
+        batch_strategy = st.selectbox(
+            "Strategy",
+            STRATEGIES,
+            help="Uses the dashboard's default parameters for this strategy across every asset.",
+            key="batch_strategy",
+        )
     with bb_c3:
         batch_dates = st.date_input(
             "Date Range",
