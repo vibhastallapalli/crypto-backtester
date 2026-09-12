@@ -2288,6 +2288,7 @@ with tab6:
             value=(datetime.date(2024, 1, 1), datetime.date(2024, 12, 31)),
             min_value=datetime.date(2018, 1, 1),
             max_value=datetime.date.today(),
+            help="Signals are calculated from prices within this selected period.",
             key="sc_dates",
         )
 
