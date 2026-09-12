@@ -327,6 +327,7 @@ with tab1:
             value=(D_START, D_END),
             min_value=datetime.date(2018, 1, 1),
             max_value=datetime.date.today(),
+            help="Choose the inclusive historical period to evaluate.",
             key="bt_dates",
         )
     with c3:
