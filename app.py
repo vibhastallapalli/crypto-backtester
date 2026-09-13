@@ -2079,7 +2079,13 @@ with tab5:
 
     bb_c1, bb_c2, bb_c3 = st.columns([2, 1, 1])
     with bb_c1:
-        batch_assets = st.multiselect("Assets", ASSETS, default=ASSETS, key="batch_assets")
+        batch_assets = st.multiselect(
+            "Assets",
+            ASSETS,
+            default=ASSETS,
+            help="Each selected asset is backtested independently with the same strategy settings.",
+            key="batch_assets",
+        )
     with bb_c2:
         batch_strategy = st.selectbox("Strategy", STRATEGIES, key="batch_strategy")
     with bb_c3:
