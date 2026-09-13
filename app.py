@@ -1735,6 +1735,7 @@ with tab3:
         tl_dates = st.date_input(
             "Date Range",
             value=(datetime.date(2018, 1, 1), datetime.date.today()),
+            help="The start filters entry dates; the end filters exit dates.",
             key="tl_dates",
         )
     with c3:
