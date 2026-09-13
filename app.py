@@ -178,7 +178,7 @@ div[data-testid="stDataFrame"] {{ border: 1px solid {BORDER}; border-radius: 8px
 # ── Header ─────────────────────────────────────────────────────────────────────
 st.markdown(
     f'<h1 style="margin-bottom:0;font-family:Space Mono,monospace;color:{ACCENT};">'
-    "⬡ CryptoBacktest</h1>",
+    '<span aria-hidden="true">⬡</span> CryptoBacktest</h1>',
     unsafe_allow_html=True,
 )
 st.markdown(
@@ -333,7 +333,7 @@ with tab1:
 
     # Dynamic params
     st.markdown(
-        f'<p style="color:{MUTED};font-size:0.8rem;margin:6px 0 2px;">Parameters</p>',
+        f'<p role="heading" aria-level="2" style="color:{MUTED};font-size:0.8rem;margin:6px 0 2px;">Parameters</p>',
         unsafe_allow_html=True,
     )
     if strategy == "MA Crossover":
@@ -393,7 +393,7 @@ with tab1:
         params = {"window": vwap_window}
 
     st.markdown(
-        f'<p style="color:{MUTED};font-size:0.8rem;margin:6px 0 2px;">Risk Controls</p>',
+        f'<p role="heading" aria-level="2" style="color:{MUTED};font-size:0.8rem;margin:6px 0 2px;">Risk Controls</p>',
         unsafe_allow_html=True,
     )
     rc1, rc2, rc3, rc4 = st.columns([1, 1, 1, 1])
@@ -901,6 +901,7 @@ with tab1:
                     st.dataframe(
                         pd.DataFrame(reg_summary).style.applymap(_rc, subset=["Avg PnL %", "Total PnL %"]),
                         use_container_width=True,
+                        hide_index=True,
                     )
 
         # ── S&P 500 Benchmark ──────────────────────────────────────────────────
@@ -1194,6 +1195,7 @@ with tab1:
                 .applymap(_wf_color, subset=["Return %", "Sharpe"])
                 .format({"Return %": "{:.2f}%", "Sharpe": "{:.2f}"}),
                 use_container_width=True,
+                hide_index=True,
             )
 
         # ── Parameter Heatmap ─────────────────────────────────────────────────
@@ -1738,7 +1740,12 @@ with tab3:
             key="tl_dates",
         )
     with c3:
-        tl_wl = st.selectbox("Result", ["All", "Win", "Loss"], key="tl_wl")
+        tl_wl = st.selectbox(
+            "Result",
+            ["All", "Win", "Loss"],
+            help="Wins have positive PnL; losses have zero or negative PnL.",
+            key="tl_wl",
+        )
 
     asset_f = None if tl_asset == "All" else tl_asset
     wl_f = None if tl_wl == "All" else tl_wl
@@ -1778,7 +1785,7 @@ with tab3:
         )
 
         styled = trades_df.style.applymap(_highlight_pnl, subset=["pnl", "pnl_pct"])
-        st.dataframe(styled, use_container_width=True, height=480)
+        st.dataframe(styled, use_container_width=True, height=480, hide_index=True)
 
         # ── Monthly returns heatmap ────────────────────────────────────────────
         monthly = trades_df.copy()
@@ -1981,7 +1988,7 @@ with tab3:
 with tab4:
     st.markdown(
         f'<p style="color:{MUTED};font-size:0.82rem;margin-bottom:6px;">'
-        "Run arbitrary SQL against the local SQLite database (read operations only recommended).</p>",
+        "Explore the local SQLite database with a SELECT query or choose an example below.</p>",
         unsafe_allow_html=True,
     )
 
@@ -2021,7 +2028,7 @@ with tab4:
                 rc = len(res_df)
                 st.success(f"✓  {rc} row{'s' if rc != 1 else ''} returned")
                 if not res_df.empty:
-                    st.dataframe(res_df, use_container_width=True, height=420)
+                    st.dataframe(res_df, use_container_width=True, height=420, hide_index=True)
             except Exception as exc:
                 st.error(f"SQL error: {exc}")
 
@@ -2399,4 +2406,5 @@ with tab6:
         st.dataframe(
             sc_sum_df.style.applymap(_sc_bias_color, subset=["Bias"]),
             use_container_width=True,
+            hide_index=True,
         )
