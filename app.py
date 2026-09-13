@@ -319,7 +319,7 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
 with tab1:
     c1, c2, c3 = st.columns([1, 2, 1])
     with c1:
-        asset = st.selectbox("Asset", ASSETS)
+        asset = st.selectbox("Asset", ASSETS, help="Historical prices are evaluated in USD.")
     with c2:
         date_range = st.date_input(
             "Date Range",
