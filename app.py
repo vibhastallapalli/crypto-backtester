@@ -241,9 +241,9 @@ EXAMPLE_QUERIES = {
 def metric_card(col, label: str, value, pct: bool = False, color: str = "neutral") -> None:
     val_str = f"{value}{'%' if pct else ''}"
     col.markdown(
-        f'<div class="mc-wrap">'
-        f'<div class="mc-label">{label}</div>'
-        f'<div class="mc-value mc-{color}">{val_str}</div>'
+        f'<div class="mc-wrap" role="group" aria-label="{label}: {val_str}">'
+        f'<div class="mc-label" aria-hidden="true">{label}</div>'
+        f'<div class="mc-value mc-{color}" aria-hidden="true">{val_str}</div>'
         f"</div>",
         unsafe_allow_html=True,
     )
