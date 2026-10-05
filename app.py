@@ -987,18 +987,18 @@ with tab1:
             ))
             fig_seq.add_trace(go.Scatter(
                 x=trade_nums, y=cum_pnl,
-                mode="lines", name="Cumulative PnL %",
+                mode="lines", name="Running Sum of Trade PnL %",
                 line=dict(color=YELLOW, width=2),
                 yaxis="y2",
             ))
             fig_seq.add_hline(y=0, line_dash="dot", line_color=MUTED, opacity=0.5)
             apply_plotly_layout(
                 fig_seq,
-                title="Per-Trade PnL % with Cumulative (right axis)",
+                title="Per-Trade PnL % with Running Sum (right axis)",
                 xaxis_title="Trade #",
                 yaxis_title="PnL %",
                 yaxis2=dict(
-                    title="Cumulative PnL %",
+                    title="Running Sum of Trade PnL %",
                     overlaying="y", side="right",
                     gridcolor=BORDER, showgrid=False,
                     tickfont=dict(color=YELLOW),
@@ -1765,7 +1765,7 @@ with tab3:
         metric_card(sc1, "Total Trades", total, color="neutral")
         metric_card(sc2, "Wins", wins, color="pos")
         metric_card(sc3, "Losses", total - wins, color="neg" if total - wins > 0 else "neutral")
-        metric_card(sc4, "Cumulative PnL%", total_pnl, pct=True,
+        metric_card(sc4, "Sum of Trade PnL %", total_pnl, pct=True,
                     color=_color_for(total_pnl))
 
         st.markdown("<div style='margin-top:8px'></div>", unsafe_allow_html=True)
