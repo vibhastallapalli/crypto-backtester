@@ -1468,7 +1468,7 @@ with tab2:
         if len(pa_assets) < 2:
             st.warning("Select at least 2 assets.")
         elif not isinstance(pa_dates, (list, tuple)) or len(pa_dates) != 2:
-            st.warning("Select a valid date range.")
+            st.warning("Select both a start and end date.")
         else:
             s, e = str(pa_dates[0]), str(pa_dates[1])
             with st.spinner("Fetching price data for all assets…"):
@@ -2128,7 +2128,7 @@ with tab5:
         if len(batch_assets) < 1:
             st.warning("Select at least one asset.")
         elif not isinstance(batch_dates, (list, tuple)) or len(batch_dates) != 2:
-            st.warning("Select a valid date range.")
+            st.warning("Select both a start and end date.")
         else:
             bs, be = str(batch_dates[0]), str(batch_dates[1])
             fn = BATCH_FN_MAP[batch_strategy]
@@ -2283,7 +2283,7 @@ with tab6:
         sc_assets = st.multiselect("Assets to scan", ASSETS, default=ASSETS, key="sc_assets")
     with sc_c2:
         sc_dates = st.date_input(
-            "Lookback period",
+            "Scan date range",
             value=(datetime.date(2024, 1, 1), datetime.date(2024, 12, 31)),
             min_value=datetime.date(2018, 1, 1),
             max_value=datetime.date.today(),
@@ -2309,7 +2309,7 @@ with tab6:
         if not sc_assets:
             st.warning("Select at least one asset.")
         elif not isinstance(sc_dates, (list, tuple)) or len(sc_dates) != 2:
-            st.warning("Select a valid date range.")
+            st.warning("Select both a start and end date.")
         else:
             sc_s, sc_e = str(sc_dates[0]), str(sc_dates[1])
             strat_names = list(_SC_FN_MAP.keys())
