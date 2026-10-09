@@ -1404,7 +1404,7 @@ with tab1:
             cmp_results = st.session_state["cmp_results"]
             st.divider()
             st.markdown(
-                f'<p style="color:{ACCENT};font-family:Space Mono,monospace;font-size:0.95rem;'
+                f'<p role="heading" aria-level="2" style="color:{ACCENT};font-family:Space Mono,monospace;font-size:0.95rem;'
                 f'font-weight:700;margin-bottom:8px;">Strategy Comparison (default params)</p>',
                 unsafe_allow_html=True,
             )
@@ -1595,7 +1595,7 @@ with tab2:
             # ── Portfolio Optimizer ────────────────────────────────────────────
             st.divider()
             st.markdown(
-                f'<p style="color:{ACCENT};font-family:Space Mono,monospace;font-size:0.95rem;'
+                f'<p role="heading" aria-level="2" style="color:{ACCENT};font-family:Space Mono,monospace;font-size:0.95rem;'
                 f'font-weight:700;margin-bottom:8px;">Portfolio Optimizer</p>',
                 unsafe_allow_html=True,
             )
@@ -1825,7 +1825,7 @@ with tab3:
         # ── Trade Duration Analytics ───────────────────────────────────────────
         st.divider()
         st.markdown(
-            f'<p style="color:{ACCENT};font-family:Space Mono,monospace;font-size:0.95rem;'
+            f'<p role="heading" aria-level="2" style="color:{ACCENT};font-family:Space Mono,monospace;font-size:0.95rem;'
             f'font-weight:700;margin-bottom:8px;">Trade Duration Analytics</p>',
             unsafe_allow_html=True,
         )
@@ -2173,7 +2173,7 @@ with tab5:
 
         st.divider()
         st.markdown(
-            f'<p style="color:{ACCENT};font-family:Space Mono,monospace;font-size:0.95rem;'
+            f'<p role="heading" aria-level="2" style="color:{ACCENT};font-family:Space Mono,monospace;font-size:0.95rem;'
             f'font-weight:700;margin-bottom:8px;">{batch_strat_label} — All Assets (default params)</p>',
             unsafe_allow_html=True,
         )
@@ -2400,7 +2400,7 @@ with tab6:
             return f"color: {MUTED}"
 
         st.markdown(
-            f'<p style="color:{MUTED};font-size:0.82rem;margin-top:8px;">Signal tally per asset:</p>',
+            f'<p role="heading" aria-level="2" style="color:{MUTED};font-size:0.82rem;margin-top:8px;">Signal tally per asset:</p>',
             unsafe_allow_html=True,
         )
         st.dataframe(
