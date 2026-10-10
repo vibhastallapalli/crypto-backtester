@@ -113,6 +113,7 @@ h1, h2, h3,
 }}
 .stButton > button:hover {{ background: #00b899 !important; color: {BG} !important; }}
 .stButton > button:focus-visible,
+.stDownloadButton > button:focus-visible,
 .stTabs [data-baseweb="tab"]:focus-visible {{
     outline: 2px solid {YELLOW};
     outline-offset: 2px;
@@ -1404,7 +1405,7 @@ with tab1:
             cmp_results = st.session_state["cmp_results"]
             st.divider()
             st.markdown(
-                f'<p style="color:{ACCENT};font-family:Space Mono,monospace;font-size:0.95rem;'
+                f'<p role="heading" aria-level="2" style="color:{ACCENT};font-family:Space Mono,monospace;font-size:0.95rem;'
                 f'font-weight:700;margin-bottom:8px;">Strategy Comparison (default params)</p>',
                 unsafe_allow_html=True,
             )
@@ -1468,7 +1469,7 @@ with tab2:
         if len(pa_assets) < 2:
             st.warning("Select at least 2 assets.")
         elif not isinstance(pa_dates, (list, tuple)) or len(pa_dates) != 2:
-            st.warning("Select a valid date range.")
+            st.warning("Select both a start and end date.")
         else:
             s, e = str(pa_dates[0]), str(pa_dates[1])
             with st.spinner("Fetching price data for all assets…"):
@@ -1595,7 +1596,7 @@ with tab2:
             # ── Portfolio Optimizer ────────────────────────────────────────────
             st.divider()
             st.markdown(
-                f'<p style="color:{ACCENT};font-family:Space Mono,monospace;font-size:0.95rem;'
+                f'<p role="heading" aria-level="2" style="color:{ACCENT};font-family:Space Mono,monospace;font-size:0.95rem;'
                 f'font-weight:700;margin-bottom:8px;">Portfolio Optimizer</p>',
                 unsafe_allow_html=True,
             )
@@ -1755,7 +1756,7 @@ with tab3:
     trades_df = get_trades(asset=asset_f, start=s_f, end=e_f, win_loss=wl_f)
 
     if trades_df.empty:
-        st.info("No trades found. Run a backtest to populate the trade log.")
+        st.info("No trades match the current filters. Adjust the filters or run a backtest to add trades.")
     else:
         total = len(trades_df)
         wins = int((trades_df["pnl"] > 0).sum())
@@ -1825,7 +1826,7 @@ with tab3:
         # ── Trade Duration Analytics ───────────────────────────────────────────
         st.divider()
         st.markdown(
-            f'<p style="color:{ACCENT};font-family:Space Mono,monospace;font-size:0.95rem;'
+            f'<p role="heading" aria-level="2" style="color:{ACCENT};font-family:Space Mono,monospace;font-size:0.95rem;'
             f'font-weight:700;margin-bottom:8px;">Trade Duration Analytics</p>',
             unsafe_allow_html=True,
         )
@@ -2128,7 +2129,7 @@ with tab5:
         if len(batch_assets) < 1:
             st.warning("Select at least one asset.")
         elif not isinstance(batch_dates, (list, tuple)) or len(batch_dates) != 2:
-            st.warning("Select a valid date range.")
+            st.warning("Select both a start and end date.")
         else:
             bs, be = str(batch_dates[0]), str(batch_dates[1])
             fn = BATCH_FN_MAP[batch_strategy]
@@ -2173,7 +2174,7 @@ with tab5:
 
         st.divider()
         st.markdown(
-            f'<p style="color:{ACCENT};font-family:Space Mono,monospace;font-size:0.95rem;'
+            f'<p role="heading" aria-level="2" style="color:{ACCENT};font-family:Space Mono,monospace;font-size:0.95rem;'
             f'font-weight:700;margin-bottom:8px;">{batch_strat_label} — All Assets (default params)</p>',
             unsafe_allow_html=True,
         )
@@ -2283,7 +2284,7 @@ with tab6:
         sc_assets = st.multiselect("Assets to scan", ASSETS, default=ASSETS, key="sc_assets")
     with sc_c2:
         sc_dates = st.date_input(
-            "Lookback period",
+            "Scan date range",
             value=(datetime.date(2024, 1, 1), datetime.date(2024, 12, 31)),
             min_value=datetime.date(2018, 1, 1),
             max_value=datetime.date.today(),
@@ -2309,7 +2310,7 @@ with tab6:
         if not sc_assets:
             st.warning("Select at least one asset.")
         elif not isinstance(sc_dates, (list, tuple)) or len(sc_dates) != 2:
-            st.warning("Select a valid date range.")
+            st.warning("Select both a start and end date.")
         else:
             sc_s, sc_e = str(sc_dates[0]), str(sc_dates[1])
             strat_names = list(_SC_FN_MAP.keys())
@@ -2400,7 +2401,7 @@ with tab6:
             return f"color: {MUTED}"
 
         st.markdown(
-            f'<p style="color:{MUTED};font-size:0.82rem;margin-top:8px;">Signal tally per asset:</p>',
+            f'<p role="heading" aria-level="2" style="color:{MUTED};font-size:0.82rem;margin-top:8px;">Signal tally per asset:</p>',
             unsafe_allow_html=True,
         )
         st.dataframe(
