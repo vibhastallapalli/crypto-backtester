@@ -1738,6 +1738,7 @@ with tab3:
         tl_dates = st.date_input(
             "Date Range",
             value=(datetime.date(2018, 1, 1), datetime.date.today()),
+            help="Includes trades entered on or after the start date and exited on or before the end date.",
             key="tl_dates",
         )
     with c3:
@@ -1778,7 +1779,8 @@ with tab3:
 
         dl_col, _ = st.columns([1, 4])
         dl_col.download_button(
-            label="⬇  Export CSV",
+            label="⬇  Export filtered trades CSV",
+            help="Downloads the trades matching the current asset, date range, and result filters.",
             data=trades_df.to_csv(index=False).encode(),
             file_name=f"trades_{tl_asset.lower()}_{datetime.date.today()}.csv",
             mime="text/csv",
